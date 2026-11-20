@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,13 +21,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.MovieCreation
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,13 +40,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.data.GreetingPrompt
 import com.example.data.PromptDimension
-import com.example.data.PromptFormula
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -52,7 +56,10 @@ fun WelcomeLandingView(
     formattedDate: String,
     showOpenDrawerButton: Boolean,
     onOpenDrawer: () -> Unit,
-    onSelectFormula: (PromptFormula) -> Unit,
+    onOpenAiStudio: () -> Unit,
+    onOpenAiVideoStudio: () -> Unit,
+    onOpenGreetingEditor: () -> Unit,
+    onSelectPrompt: (GreetingPrompt) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -80,7 +87,7 @@ fun WelcomeLandingView(
         ) {
             Canvas(modifier = Modifier.matchParentSize()) {
                 drawCircle(
-                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f),
+                    color = Color.White.copy(alpha = 0.08f),
                     radius = size.minDimension * 0.55f,
                     center = Offset(size.width * 0.88f, size.height * 0.18f)
                 )
@@ -135,35 +142,119 @@ fun WelcomeLandingView(
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.92f)
                 )
 
-                if (showOpenDrawerButton) {
-                    Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(18.dp))
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Button(
-                        onClick = onOpenDrawer,
+                        onClick = onOpenGreetingEditor,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                             contentColor = MaterialTheme.colorScheme.primary
                         ),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        modifier = Modifier.testTag("welcome_open_drawer_btn")
+                        modifier = Modifier.testTag("welcome_open_editor_btn")
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.MenuBook,
+                            imageVector = Icons.Filled.EditNote,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = stringResource(R.string.welcome_open_drawer),
+                            text = stringResource(R.string.editor_btn_open_from_welcome),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold
                         )
+                    }
+
+                    OutlinedButton(
+                        onClick = onOpenAiStudio,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(
+                            1.2.dp,
+                            MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.testTag("welcome_open_studio_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Brush,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.btn_open_ai_studio),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onOpenAiVideoStudio,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(
+                            1.2.dp,
+                            MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.testTag("welcome_open_video_studio_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.MovieCreation,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.btn_open_ai_video_studio),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    if (showOpenDrawerButton) {
+                        OutlinedButton(
+                            onClick = onOpenDrawer,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(
+                                1.2.dp,
+                                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                            modifier = Modifier.testTag("welcome_open_drawer_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MenuBook,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.welcome_open_drawer),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Quick-Start Dimension Cards
+        // Quick-Start Dimension Cards showing GreetingPrompt type & media tags
         Text(
             text = stringResource(R.string.welcome_quick_start),
             style = MaterialTheme.typography.titleLarge,
@@ -201,7 +292,7 @@ fun WelcomeLandingView(
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
-                                    text = dimension.tag,
+                                    text = dimension.type.displayName,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -215,26 +306,40 @@ fun WelcomeLandingView(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            dimension.formulas.forEach { formula ->
+                            dimension.prompts.forEach { prompt ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.surfaceContainer,
                                     shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))
-                                        .clickable { onSelectFormula(formula) }
-                                        .testTag("quick_formula_${formula.id}")
+                                        .clickable { onSelectPrompt(prompt) }
+                                        .testTag("quick_formula_${prompt.id}")
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = formula.name,
+                                            text = prompt.title,
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
+                                        if (prompt.mediaTags.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = prompt.mediaTags.joinToString("/") { it.displayName },
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,

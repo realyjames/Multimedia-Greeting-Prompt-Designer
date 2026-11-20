@@ -27,12 +27,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.FormulaVariable
-import com.example.data.PromptFormula
+import com.example.data.GreetingPrompt
 import com.example.ui.PromptDesignerUiState
 
 @Composable
 fun VariablesSectionCard(
-    formula: PromptFormula,
+    prompt: GreetingPrompt,
     state: PromptDesignerUiState,
     onSelectVariable: (String, String) -> Unit,
     onToggleEditVariable: (String) -> Unit,
@@ -81,7 +81,7 @@ fun VariablesSectionCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                formula.variables.forEachIndexed { index, variable ->
+                prompt.variables.forEachIndexed { index, variable ->
                     val options = state.effectiveOptionsFor(variable)
                     val selected = state.selectedVariables[variable.name]
                         ?: options.firstOrNull().orEmpty()
@@ -107,7 +107,7 @@ fun VariablesSectionCard(
                         onRandomize = { onRandomizeVariable(variable) }
                     )
 
-                    if (index < formula.variables.lastIndex) {
+                    if (index < prompt.variables.lastIndex) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }

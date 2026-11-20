@@ -20,11 +20,26 @@ class TranslationService {
      * as "中文 (English)" unless the user already included parentheses.
      * Falls back gracefully to the original Chinese text if offline or translation fails.
      */
-    suspend fun formatWithAutoTranslation(rawInput: String): String = withContext(Dispatchers.IO) {
+    suspend fun formatWithAutoTranslation(rawInput: String): String {
         val zhVal = rawInput.trim()
         if (zhVal.isEmpty() || zhVal.contains('(') || zhVal.contains('（')) {
-            return@withContext zhVal
+            return zhVal
         }
+        val enVal = translateToEnglish(zhVal).orEmpty()
+        return if (enVal.isNotEmpty() && !enVal.equals(zhVal, ignoreCase = true)) {
+            "$zhVal ($enVal)"
+        } else {
+            zhVal
+        }
+    }
+
+    /**
+     * Translates Traditional Chinese text to English via Google Translate endpoint.
+     * Returns null if offline or translation fails.
+     */
+    suspend fun translateToEnglish(rawInput: String): String? = withContext(Dispatchers.IO) {
+        val zhVal = rawInput.trim()
+        if (zhVal.isEmpty()) return@withContext null
 
         try {
             val encoded = URLEncoder.encode(zhVal, "UTF-8")
@@ -36,27 +51,22 @@ class TranslationService {
                 .build()
 
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext zhVal
+                if (!response.isSuccessful) return@withContext null
                 val body = response.body?.string().orEmpty()
-                if (body.isBlank()) return@withContext zhVal
+                if (body.isBlank()) return@withContext null
 
                 val root = JSONArray(body)
-                val segments = root.optJSONArray(0) ?: return@withContext zhVal
+                val segments = root.optJSONArray(0) ?: return@withContext null
                 val translatedBuilder = StringBuilder()
                 for (i in 0 until segments.length()) {
                     val segment = segments.optJSONArray(i)
                     val part = segment?.optString(0, "").orEmpty()
                     translatedBuilder.append(part)
                 }
-                val enVal = translatedBuilder.toString().trim()
-                if (enVal.isNotEmpty() && !enVal.equals(zhVal, ignoreCase = true)) {
-                    "$zhVal ($enVal)"
-                } else {
-                    zhVal
-                }
+                translatedBuilder.toString().trim().takeIf { it.isNotEmpty() }
             }
         } catch (_: Exception) {
-            zhVal
+            null
         }
     }
 }

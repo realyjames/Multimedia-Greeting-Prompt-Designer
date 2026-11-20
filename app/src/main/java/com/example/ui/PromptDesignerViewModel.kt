@@ -1,28 +1,49 @@
 package com.example.ui
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.ai.GeminiImageRepository
+import com.example.ai.GeminiTranslationRepository
 import com.example.data.AttachedFileItem
 import com.example.data.CUSTOM_OPTION_SENTINEL
 import com.example.data.ContextTab
 import com.example.data.DEFAULT_SIGNATURE
 import com.example.data.FormulaVariable
+import com.example.data.GreetingPrompt
 import com.example.data.PromptAssembler
 import com.example.data.PromptAssemblyInput
 import com.example.data.PromptCatalog
 import com.example.data.PromptDimension
-import com.example.data.PromptFormula
 import com.example.data.PromptOptionsLibrary
 import com.example.data.PromptPreferencesRepository
 import com.example.data.SIGNATURE_SLOT_COUNT
 import com.example.data.TranslationService
+import com.google.firebase.ai.type.QuotaExceededException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+
+private const val TAG = "PromptDesignerVM"
+
+enum class ImageStudioMode {
+    CREATE,
+    EDIT
+}
+
+sealed interface ImageGenUiState {
+    data object Idle : ImageGenUiState
+    data object Loading : ImageGenUiState
+    data class Success(val bitmap: Bitmap, val promptUsed: String) : ImageGenUiState
+    data class Error(val message: String) : ImageGenUiState
+}
 
 data class ConfirmDialogState(
     val title: String,
@@ -39,7 +60,7 @@ data class SnackbarEvent(
 data class PromptDesignerUiState(
     val dimensions: List<PromptDimension> = PromptCatalog.dimensions,
     val expandedDimensionIds: Set<String> = setOf(PromptCatalog.dimensions.first().id),
-    val selectedFormula: PromptFormula? = null,
+    val selectedPrompt: GreetingPrompt? = null,
 
     // Signature settings
     val signatureSlots: List<String> = List(SIGNATURE_SLOT_COUNT) { idx ->
@@ -79,9 +100,20 @@ data class PromptDesignerUiState(
     val contextUrl: String = "",
     val attachedFiles: List<AttachedFileItem> = emptyList(),
 
-    // Output
+    // Output (Chinese + English Translation from GreetingPrompt & Gemini AI)
     val generatedPrompt: String = "",
+    val generatedEnglishPrompt: String = "",
+    val promptTranslationState: GreetingTranslationState = GreetingTranslationState.Idle,
     val promptGenerationCounter: Int = 0,
+
+    // AI Image Studio (gemini-nano-banana-2.1 via Firebase AI Logic)
+    val isImageStudioOpen: Boolean = false,
+    val imageStudioMode: ImageStudioMode = ImageStudioMode.CREATE,
+    val studioPromptInput: String = "",
+    val studioEditInstruction: String = "",
+    val studioSourceBitmap: Bitmap? = null,
+    val studioSourceLabel: String = "",
+    val imageGenUiState: ImageGenUiState = ImageGenUiState.Idle,
 
     // Dialog & feedback
     val pendingDialog: ConfirmDialogState? = null,
@@ -101,35 +133,46 @@ class PromptDesignerViewModel(application: Application) : AndroidViewModel(appli
 
     private val repository = PromptPreferencesRepository(application.applicationContext)
     private val translationService = TranslationService()
+    private val geminiImageRepository = GeminiImageRepository()
+    private val geminiTranslationRepository = GeminiTranslationRepository()
 
     private val _uiState = MutableStateFlow(PromptDesignerUiState())
     val uiState: StateFlow<PromptDesignerUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            val saved = repository.preferencesFlow.first()
-            _uiState.update { state ->
-                val validImageCount = saved.imageCountOptions.firstOrNull()
-                    ?: PromptOptionsLibrary.defaultImageCounts.first()
-                val validFrame = saved.frameOptions.firstOrNull()
-                    ?: PromptOptionsLibrary.defaultFrames.first()
-                state.copy(
-                    signatureSlots = saved.signatureSlots,
-                    selectedSignatureIndex = saved.selectedSignatureIndex,
-                    showSignature = saved.showSignature,
-                    showDate = saved.showDate,
-                    showFrame = saved.showFrame,
-                    imageCountOptions = saved.imageCountOptions,
-                    selectedImageCount = validImageCount,
-                    frameOptions = saved.frameOptions,
-                    selectedFrame = validFrame,
-                    customVariableOptionsMap = saved.customVariableOptions
-                )
+            repository.preferencesFlow.collect { saved ->
+                _uiState.update { state ->
+                    val validImageCount = if (saved.imageCountOptions.contains(state.selectedImageCount)) {
+                        state.selectedImageCount
+                    } else {
+                        saved.imageCountOptions.firstOrNull()
+                            ?: PromptOptionsLibrary.defaultImageCounts.first()
+                    }
+                    val validFrame = if (saved.frameOptions.contains(state.selectedFrame)) {
+                        state.selectedFrame
+                    } else {
+                        saved.frameOptions.firstOrNull()
+                            ?: PromptOptionsLibrary.defaultFrames.first()
+                    }
+                    state.copy(
+                        signatureSlots = saved.signatureSlots,
+                        selectedSignatureIndex = saved.selectedSignatureIndex,
+                        showSignature = saved.showSignature,
+                        showDate = saved.showDate,
+                        showFrame = saved.showFrame,
+                        imageCountOptions = saved.imageCountOptions,
+                        selectedImageCount = validImageCount,
+                        frameOptions = saved.frameOptions,
+                        selectedFrame = validFrame,
+                        customVariableOptionsMap = saved.customVariableOptions
+                    )
+                }
             }
         }
     }
 
-    // --- Sidebar & Formula Selection ---
+    // --- Sidebar & GreetingPrompt Selection ---
 
     fun toggleDimensionExpanded(dimensionId: String) {
         _uiState.update { state ->
@@ -141,26 +184,27 @@ class PromptDesignerViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    fun selectFormula(formula: PromptFormula) {
+    fun selectPrompt(prompt: GreetingPrompt) {
         _uiState.update { state ->
-            val initialVarSelections = formula.variables.associate { variable ->
+            val initialVarSelections = prompt.variables.associate { variable ->
                 val opts = state.effectiveOptionsFor(variable)
                 variable.name to (opts.firstOrNull() ?: variable.defaultOptions.firstOrNull().orEmpty())
             }
-            val expandedDims = state.expandedDimensionIds + formula.dimensionId
+            val expandedDims = state.expandedDimensionIds + prompt.dimensionId
             state.copy(
-                selectedFormula = formula,
+                selectedPrompt = prompt,
                 expandedDimensionIds = expandedDims,
                 selectedVariables = initialVarSelections,
                 editingVariables = emptySet(),
                 customVariableInputs = emptyMap(),
-                generatedPrompt = ""
+                generatedPrompt = "",
+                generatedEnglishPrompt = ""
             )
         }
     }
 
-    fun clearSelectedFormula() {
-        _uiState.update { it.copy(selectedFormula = null) }
+    fun clearSelectedPrompt() {
+        _uiState.update { it.copy(selectedPrompt = null) }
     }
 
     // --- Signature & General Toggles ---
@@ -467,9 +511,9 @@ class PromptDesignerViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun randomizeAllVariables() {
-        val formula = _uiState.value.selectedFormula ?: return
+        val prompt = _uiState.value.selectedPrompt ?: return
         _uiState.update { state ->
-            val randomized = formula.variables.associate { variable ->
+            val randomized = prompt.variables.associate { variable ->
                 val opts = state.effectiveOptionsFor(variable)
                 variable.name to (opts.randomOrNull() ?: variable.defaultOptions.firstOrNull().orEmpty())
             }
@@ -619,7 +663,7 @@ class PromptDesignerViewModel(application: Application) : AndroidViewModel(appli
 
     fun generatePrompt() {
         val state = _uiState.value
-        val formula = state.selectedFormula ?: return
+        val prompt = state.selectedPrompt ?: return
 
         val effectiveImageCount = if (state.selectedImageCount == CUSTOM_OPTION_SENTINEL) {
             state.customImageCountInput.trim().ifEmpty { "1張" }
@@ -633,7 +677,7 @@ class PromptDesignerViewModel(application: Application) : AndroidViewModel(appli
             state.selectedFrame
         }
 
-        val resolvedVariables = formula.variables.associate { variable ->
+        val resolvedVariables = prompt.variables.associate { variable ->
             val rawSelection = state.selectedVariables[variable.name]
             val resolved = if (rawSelection == CUSTOM_OPTION_SENTINEL) {
                 state.customVariableInputs[variable.name]?.trim().orEmpty().ifEmpty {
@@ -648,9 +692,9 @@ class PromptDesignerViewModel(application: Application) : AndroidViewModel(appli
             variable.name to resolved
         }
 
-        val assembled = PromptAssembler.assemble(
+        val result = PromptAssembler.assembleDetailed(
             PromptAssemblyInput(
-                formula = formula,
+                prompt = prompt,
                 imageCount = effectiveImageCount,
                 signatureText = state.activeSignatureDisplay,
                 showSignature = state.showSignature,
@@ -671,10 +715,90 @@ class PromptDesignerViewModel(application: Application) : AndroidViewModel(appli
 
         _uiState.update {
             it.copy(
-                generatedPrompt = assembled,
+                generatedPrompt = result.chinesePrompt,
+                generatedEnglishPrompt = result.englishPrompt,
+                promptTranslationState = GreetingTranslationState.Idle,
                 isSignatureExpanded = false,
                 promptGenerationCounter = it.promptGenerationCounter + 1
             )
+        }
+    }
+
+    /**
+     * 透過 `firebase-ai` (Gemini 3.8 Flash) 將目前生成的中文問候語提示詞翻譯為自然流暢的英文版本。
+     */
+    fun translatePromptWithGemini() {
+        val state = _uiState.value
+        val sourceText = state.generatedPrompt.trim()
+        if (sourceText.isEmpty()) {
+            emitSnackbar("請先生成或輸入中文問候提示詞！")
+            return
+        }
+        if (state.promptTranslationState is GreetingTranslationState.Loading ||
+            state.promptTranslationState is GreetingTranslationState.Streaming
+        ) {
+            return
+        }
+
+        val categoryLabel = state.selectedPrompt?.type?.displayName
+        viewModelScope.launch {
+            _uiState.update { it.copy(promptTranslationState = GreetingTranslationState.Loading) }
+            val accumulated = StringBuilder()
+            try {
+                withTimeout(60_000L) {
+                    geminiTranslationRepository.translateGreetingStream(
+                        chineseText = sourceText,
+                        greetingTypeLabel = categoryLabel
+                    ).collect { chunk ->
+                        accumulated.append(chunk)
+                        val partial = accumulated.toString()
+                        _uiState.update {
+                            it.copy(
+                                generatedEnglishPrompt = partial,
+                                promptTranslationState = GreetingTranslationState.Streaming(partial)
+                            )
+                        }
+                    }
+                }
+                val finalEnglish = accumulated.toString().trim()
+                if (finalEnglish.isNotEmpty()) {
+                    _uiState.update {
+                        it.copy(
+                            generatedEnglishPrompt = finalEnglish,
+                            promptTranslationState = GreetingTranslationState.Success(finalEnglish)
+                        )
+                    }
+                    emitSnackbar("已完成 Gemini 自然流暢英譯！")
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            promptTranslationState = GreetingTranslationState.Error(
+                                "Gemini 未回傳翻譯內容，請再試一次。"
+                            )
+                        )
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Gemini prompt translation timed out", e)
+                _uiState.update {
+                    it.copy(
+                        promptTranslationState = GreetingTranslationState.Error(
+                            "翻譯逾時（超過 60 秒），請稍後重試。"
+                        )
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Firebase AI prompt translation failed", e)
+                _uiState.update {
+                    it.copy(
+                        promptTranslationState = GreetingTranslationState.Error(
+                            e.localizedMessage ?: "Gemini 翻譯失敗，請檢查網路或 Firebase 服務狀態。"
+                        )
+                    )
+                }
+            }
         }
     }
 
@@ -684,8 +808,173 @@ class PromptDesignerViewModel(application: Application) : AndroidViewModel(appli
 
     fun getExportFileName(): String {
         val state = _uiState.value
-        val formulaName = state.selectedFormula?.name ?: "問候"
-        return PromptAssembler.buildExportFileName(formulaName, state.formattedDate)
+        val title = state.selectedPrompt?.title ?: "問候"
+        return PromptAssembler.buildExportFileName(title, state.formattedDate)
+    }
+
+    // --- AI Image Creation & Editing Studio (gemini-nano-banana-2.1) ---
+
+    fun openImageStudio(
+        initialPrompt: String? = null,
+        mode: ImageStudioMode = ImageStudioMode.CREATE
+    ) {
+        _uiState.update { state ->
+            val prefill = initialPrompt?.takeIf { it.isNotBlank() }
+                ?: state.studioPromptInput.ifBlank {
+                    state.generatedPrompt.ifBlank { state.generatedEnglishPrompt }
+                }
+            state.copy(
+                isImageStudioOpen = true,
+                imageStudioMode = mode,
+                studioPromptInput = prefill
+            )
+        }
+    }
+
+    fun closeImageStudio() {
+        _uiState.update { it.copy(isImageStudioOpen = false) }
+    }
+
+    fun setImageStudioMode(mode: ImageStudioMode) {
+        _uiState.update { it.copy(imageStudioMode = mode) }
+    }
+
+    fun updateStudioPromptInput(text: String) {
+        _uiState.update { it.copy(studioPromptInput = text) }
+    }
+
+    fun updateStudioEditInstruction(text: String) {
+        _uiState.update { it.copy(studioEditInstruction = text) }
+    }
+
+    fun setStudioSourceImage(bitmap: Bitmap, label: String) {
+        _uiState.update {
+            it.copy(
+                studioSourceBitmap = bitmap,
+                studioSourceLabel = label,
+                imageStudioMode = ImageStudioMode.EDIT
+            )
+        }
+    }
+
+    fun clearStudioSourceImage() {
+        _uiState.update {
+            it.copy(
+                studioSourceBitmap = null,
+                studioSourceLabel = ""
+            )
+        }
+    }
+
+    fun useGeneratedImageForEdit() {
+        val currentResult = _uiState.value.imageGenUiState
+        if (currentResult is ImageGenUiState.Success) {
+            _uiState.update {
+                it.copy(
+                    studioSourceBitmap = currentResult.bitmap,
+                    studioSourceLabel = "剛生成的 AI 問候圖",
+                    imageStudioMode = ImageStudioMode.EDIT
+                )
+            }
+            emitSnackbar("已載入生成圖片，請輸入修改指令繼續編輯！")
+        }
+    }
+
+    fun generateImageWithAi() {
+        val promptText = _uiState.value.studioPromptInput.trim()
+        if (promptText.isEmpty()) {
+            emitSnackbar("請先輸入圖片生成提示詞！")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(imageGenUiState = ImageGenUiState.Loading) }
+            try {
+                val bitmap = withTimeout(60_000L) {
+                    geminiImageRepository.generateImage(promptText)
+                }
+                if (bitmap != null) {
+                    _uiState.update {
+                        it.copy(imageGenUiState = ImageGenUiState.Success(bitmap, promptText))
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(imageGenUiState = ImageGenUiState.Error("模型未回傳圖片，請調整提示詞後再試一次。"))
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Image generation timed out", e)
+                _uiState.update {
+                    it.copy(imageGenUiState = ImageGenUiState.Error("圖片生成逾時（超過 60 秒），請稍後重試。"))
+                }
+            } catch (e: QuotaExceededException) {
+                Log.e(TAG, "Image generation quota exceeded", e)
+                _uiState.update {
+                    it.copy(imageGenUiState = ImageGenUiState.Error("已達模型配額或請求速率上限，請稍後再試（需確認 Firebase Blaze 方案）。"))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Firebase AI image generation failed", e)
+                _uiState.update {
+                    it.copy(
+                        imageGenUiState = ImageGenUiState.Error(
+                            e.localizedMessage ?: "圖片生成失敗，請檢查網路或 Firebase 服務狀態。"
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun editImageWithAi() {
+        val sourceBitmap = _uiState.value.studioSourceBitmap
+        if (sourceBitmap == null) {
+            emitSnackbar("請先從相簿挑選或載入一張待編輯圖片！")
+            return
+        }
+        val instruction = _uiState.value.studioEditInstruction.trim()
+        if (instruction.isEmpty()) {
+            emitSnackbar("請輸入您想要套用的圖片編輯指令！")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(imageGenUiState = ImageGenUiState.Loading) }
+            try {
+                val bitmap = withTimeout(60_000L) {
+                    geminiImageRepository.editImage(sourceBitmap, instruction)
+                }
+                if (bitmap != null) {
+                    _uiState.update {
+                        it.copy(imageGenUiState = ImageGenUiState.Success(bitmap, instruction))
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(imageGenUiState = ImageGenUiState.Error("模型未回傳編輯後的圖片，請嘗試更具體的編輯指令。"))
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Image editing timed out", e)
+                _uiState.update {
+                    it.copy(imageGenUiState = ImageGenUiState.Error("圖片編輯逾時（超過 60 秒），請稍後重試。"))
+                }
+            } catch (e: QuotaExceededException) {
+                Log.e(TAG, "Image editing quota exceeded", e)
+                _uiState.update {
+                    it.copy(imageGenUiState = ImageGenUiState.Error("已達模型配額或請求速率上限，請稍後再試。"))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Firebase AI image editing failed", e)
+                _uiState.update {
+                    it.copy(
+                        imageGenUiState = ImageGenUiState.Error(
+                            e.localizedMessage ?: "圖片編輯失敗，請檢查網路或 Firebase 服務狀態。"
+                        )
+                    )
+                }
+            }
+        }
     }
 
     // --- Dialog & Snackbar ---

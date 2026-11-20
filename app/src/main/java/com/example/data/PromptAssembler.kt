@@ -3,7 +3,7 @@ package com.example.data
 import java.util.Calendar
 
 data class PromptAssemblyInput(
-    val formula: PromptFormula,
+    val prompt: GreetingPrompt,
     val imageCount: String,
     val signatureText: String,
     val showSignature: Boolean,
@@ -17,6 +17,11 @@ data class PromptAssemblyInput(
     val attachedFileCount: Int
 )
 
+data class AssembledPromptResult(
+    val chinesePrompt: String,
+    val englishPrompt: String
+)
+
 object PromptAssembler {
 
     fun formatTodayDate(calendar: Calendar = Calendar.getInstance()): String {
@@ -26,18 +31,24 @@ object PromptAssembler {
         return "${year}年${month}月${day}日"
     }
 
-    fun buildExportFileName(formulaName: String, formattedDate: String): String {
+    fun buildExportFileName(promptTitle: String, formattedDate: String): String {
         val timePrefix = when {
-            formulaName.contains("早安") -> "早安"
-            formulaName.contains("午安") -> "午安"
-            formulaName.contains("晚安") -> "晚安"
+            promptTitle.contains("早安") || promptTitle.contains("晨間") -> "早安"
+            promptTitle.contains("午安") || promptTitle.contains("午後") || promptTitle.contains("下午茶") -> "午安"
+            promptTitle.contains("晚安") || promptTitle.contains("夜景") || promptTitle.contains("助眠") -> "晚安"
             else -> "問候"
         }
         return "AI${timePrefix}提示詞_${formattedDate}.txt"
     }
 
+    fun assembleDetailed(input: PromptAssemblyInput): AssembledPromptResult {
+        val zh = assemble(input)
+        val en = assembleEnglish(input)
+        return AssembledPromptResult(chinesePrompt = zh, englishPrompt = en)
+    }
+
     fun assemble(input: PromptAssemblyInput): String {
-        var finalPrompt = input.formula.pattern
+        var finalPrompt = input.prompt.template
 
         // 1. Image count & anti-grid multi-image enforcement
         val imageCountStyle = input.imageCount.trim().ifEmpty { "1張" }
@@ -57,7 +68,10 @@ object PromptAssembler {
         // 2. Signature handling
         val effectiveSignature = input.signatureText.trim().ifEmpty { DEFAULT_SIGNATURE }
         if (input.showSignature) {
-            finalPrompt = finalPrompt.replace(Regex("琦閔~祝福您|琦閔"), Regex.escapeReplacement(effectiveSignature))
+            finalPrompt = finalPrompt.replace(
+                Regex("琦閔~祝福您|琦閔"),
+                Regex.escapeReplacement(effectiveSignature)
+            )
         } else {
             finalPrompt = finalPrompt.replace(
                 Regex("\n2\\. 圖片右下方必須顯示創意字體.*?的署名：「琦閔~祝福您」。"),
@@ -96,7 +110,7 @@ object PromptAssembler {
         }
 
         // 5. Formula variable replacements
-        input.formula.variables.forEach { variable ->
+        input.prompt.variables.forEach { variable ->
             val value = input.variableValues[variable.name]?.trim().orEmpty()
                 .ifEmpty { variable.defaultOptions.firstOrNull().orEmpty() }
             finalPrompt = finalPrompt.replace("{${variable.name}}", value)
@@ -120,6 +134,71 @@ object PromptAssembler {
         }
 
         return finalPrompt
+    }
+
+    private fun assembleEnglish(input: PromptAssemblyInput): String {
+        var englishPrompt = input.prompt.englishTranslation
+        if (englishPrompt.isBlank()) return ""
+
+        val effectiveSignature = input.signatureText.trim().ifEmpty { DEFAULT_SIGNATURE }
+        if (input.showSignature) {
+            englishPrompt = englishPrompt.replace(
+                Regex("琦閔~祝福您|琦閔"),
+                Regex.escapeReplacement(effectiveSignature)
+            )
+        } else {
+            englishPrompt = englishPrompt
+                .replace(Regex("\n2\\. .*?\"琦閔~祝福您\"\\."), "")
+                .replace(Regex("Keep a subtle watermark.*?with date"), "Display date")
+                .replace(Regex("End the \\[Outro\\].*"), "")
+        }
+
+        if (input.showDate) {
+            englishPrompt = englishPrompt.replace("{今日日期}", input.formattedDate)
+        } else {
+            englishPrompt = englishPrompt
+                .replace(Regex("\n3\\. .*?\\{今日日期\\}\\."), "")
+                .replace(" with date {今日日期}", "")
+                .replace("Display date {今日日期}.", "")
+        }
+
+        val imageCountStyle = input.imageCount.trim().ifEmpty { "1張" }
+        if (imageCountStyle != "1張" && imageCountStyle != "1") {
+            englishPrompt += "\n\n[Multi-Image Output Rule]\nGenerate $imageCountStyle separate, standalone images. Do NOT merge them into a collage or split grid."
+        }
+
+        if (input.showFrame && (input.showSignature || input.showDate)) {
+            val frameStyle = input.frameStyle.trim().ifEmpty { "Creative decorative frame" }
+            englishPrompt += "\n\n[Decorative Frame]\nIntegrate the signature and date inside a \"$frameStyle\" occupying 1/8 of the composition."
+        }
+
+        input.prompt.variables.forEach { variable ->
+            val rawValue = input.variableValues[variable.name]?.trim().orEmpty()
+                .ifEmpty { variable.defaultOptions.firstOrNull().orEmpty() }
+            englishPrompt = englishPrompt.replace("{${variable.name}}", extractEnglishPreferredValue(rawValue))
+        }
+
+        val trimmedText = input.contextText.trim()
+        val trimmedUrl = input.contextUrl.trim()
+        if (trimmedText.isNotEmpty() || trimmedUrl.isNotEmpty() || input.attachedFileCount > 0) {
+            val extra = StringBuilder("\n\n[Additional Context]\n")
+            if (trimmedText.isNotEmpty()) extra.append("- Custom quote/note: ").append(trimmedText).append('\n')
+            if (trimmedUrl.isNotEmpty()) extra.append("- Style reference URL: ").append(trimmedUrl).append('\n')
+            if (input.attachedFileCount > 0) extra.append("- Analyze uploaded reference files for composition.\n")
+            englishPrompt += extra.toString()
+        }
+
+        return englishPrompt.trim()
+    }
+
+    /**
+     * Prefers the English phrase inside parentheses when an option follows "中文 (English)" format
+     * (excluding Chinese-only tags like "(禪意)" or "(長輩祝壽)").
+     */
+    private fun extractEnglishPreferredValue(option: String): String {
+        val parenRegex = Regex("\\(([A-Za-z0-9][^()]*)\\)")
+        val match = parenRegex.find(option)
+        return match?.groupValues?.get(1)?.trim()?.takeIf { it.length >= 3 } ?: option
     }
 
     private fun insertAfterTextLayoutSection(prompt: String, addition: String): String {

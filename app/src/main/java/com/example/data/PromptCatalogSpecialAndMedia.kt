@@ -11,12 +11,16 @@ internal object PromptCatalogSpecialAndMedia {
         name = "🎂 生日祝福系列 (專屬慶生)",
         shortTitle = "生日祝福",
         tag = "專屬慶生",
-        formulas = listOf(
-            PromptFormula(
+        type = GreetingPromptType.BIRTHDAY,
+        prompts = listOf(
+            GreetingPrompt(
                 id = "birthday_party",
                 dimensionId = "birthday",
-                name = "奢華派對與蛋糕",
-                pattern = "身為專業生日賀卡設計師，在生成前請先搜尋並分析近期網路熱門生日圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質生日祝賀圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是令人驚豔的「{生日蛋糕款式}」，周圍裝飾著「{派對裝飾物件}」。背景是「{生日派對場景}」。請使用「{鏡頭視角}」捕捉這歡樂瞬間，整體散發出「{生日情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【生日快樂】專屬祝福語。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                title = "奢華派對與蛋糕",
+                type = GreetingPromptType.BIRTHDAY,
+                mediaTags = listOf(MediaTag.IMAGE),
+                template = "身為專業生日賀卡設計師，在生成前請先搜尋並分析近期網路熱門生日圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質生日祝賀圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是令人驚豔的「{生日蛋糕款式}」，周圍裝飾著「{派對裝飾物件}」。背景是「{生日派對場景}」。請使用「{鏡頭視角}」捕捉這歡樂瞬間，整體散發出「{生日情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【生日快樂】專屬祝福語。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                englishTranslation = "Create a celebratory, high-resolution Happy Birthday greeting card in aspect ratio \"{圖片長寬比例}\".\n\n[Visual Style]\nStyled in \"{媒材與渲染技術}\". Centerpiece: \"{生日蛋糕款式}\" surrounded by \"{派對裝飾物件}\" in \"{生日派對場景}\". Shot with \"{鏡頭視角}\" and a festive palette of \"{生日情感色調}\".\n\n[Typography & Layout]\n1. Include a heartfelt, stylish Happy Birthday wish.\n2. Display a decorative signature at the bottom-right: \"琦閔~祝福您\".\n3. Show today's date clearly beneath the signature: {今日日期}.",
                 variables = listOf(
                     FormulaVariable("圖片長寬比例", commonAspectRatioOptions),
                     FormulaVariable("媒材與渲染技術", commonMediaOptions),
@@ -56,11 +60,14 @@ internal object PromptCatalogSpecialAndMedia {
                     )
                 )
             ),
-            PromptFormula(
+            GreetingPrompt(
                 id = "birthday_cozy",
                 dimensionId = "birthday",
-                name = "溫馨靜物與禮物",
-                pattern = "身為專業生日賀卡設計師，在生成前請先搜尋並分析近期網路熱門生日圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質生日祝賀圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是「{溫馨生日主角}」，搭配著精心準備的「{專屬生日禮物}」。背景是「{溫馨慶生場景}」。請使用「{鏡頭視角}」呈現精緻細節，整體營造出「{溫暖祝福氛圍}」的視覺感受。\n\n【文字與排版設定】\n1. 圖片中需包含溫馨且真誠的【生日快樂】祝福語。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                title = "溫馨靜物與禮物",
+                type = GreetingPromptType.BIRTHDAY,
+                mediaTags = listOf(MediaTag.IMAGE),
+                template = "身為專業生日賀卡設計師，在生成前請先搜尋並分析近期網路熱門生日圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質生日祝賀圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是「{溫馨生日主角}」，搭配著精心準備的「{專屬生日禮物}」。背景是「{溫馨慶生場景}」。請使用「{鏡頭視角}」呈現精緻細節，整體營造出「{溫暖祝福氛圍}」的視覺感受。\n\n【文字與排版設定】\n1. 圖片中需包含溫馨且真誠的【生日快樂】祝福語。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                englishTranslation = "Create an intimate, high-resolution Happy Birthday still-life card in aspect ratio \"{圖片長寬比例}\".\n\n[Visual Style]\nRendered in \"{媒材與渲染技術}\". Hero focus: \"{溫馨生日主角}\" paired with \"{專屬生日禮物}\" inside \"{溫馨慶生場景}\". Captured using \"{鏡頭視角}\" with an atmosphere of \"{溫暖祝福氛圍}\".\n\n[Typography & Layout]\n1. Include a sincere, warm Happy Birthday message.\n2. Display a stylized signature at the bottom-right: \"琦閔~祝福您\".\n3. Show today's date beneath the signature: {今日日期}.",
                 variables = listOf(
                     FormulaVariable("圖片長寬比例", commonAspectRatioOptions),
                     FormulaVariable("媒材與渲染技術", commonMediaOptions),
@@ -106,12 +113,16 @@ internal object PromptCatalogSpecialAndMedia {
         name = "🎊 節慶與特殊日子",
         shortTitle = "節慶特殊日",
         tag = "盛大慶典",
-        formulas = listOf(
-            PromptFormula(
+        type = GreetingPromptType.FESTIVAL,
+        prompts = listOf(
+            GreetingPrompt(
                 id = "festival_general",
                 dimensionId = "festival",
-                name = "通用節日慶典",
-                pattern = "身為頂尖 AI 視覺藝術家，在生成前請先搜尋並分析近期網路熱門節慶圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質問候圖。\n\n【影像設定】\n今天是特別的節日，請使用「{媒材與渲染技術}」。畫面以「{節慶核心元素}」為主，背景點綴「{節日慶祝特效}」。請使用「{鏡頭視角}」，整體色彩需表現出「{節日氛圍色調}」。\n\n【文字與排版設定】\n1. 圖片中需包含符合該節日的專屬問候語 。\n2. 圖片右下方必須顯示創意字體與創意圖框搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                title = "通用節日慶典",
+                type = GreetingPromptType.FESTIVAL,
+                mediaTags = listOf(MediaTag.IMAGE),
+                template = "身為頂尖 AI 視覺藝術家，在生成前請先搜尋並分析近期網路熱門節慶圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質問候圖。\n\n【影像設定】\n今天是特別的節日，請使用「{媒材與渲染技術}」。畫面以「{節慶核心元素}」為主，背景點綴「{節日慶祝特效}」。請使用「{鏡頭視角}」，整體色彩需表現出「{節日氛圍色調}」。\n\n【文字與排版設定】\n1. 圖片中需包含符合該節日的專屬問候語 。\n2. 圖片右下方必須顯示創意字體與創意圖框搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                englishTranslation = "Create a high-resolution festive holiday greeting card in aspect ratio \"{圖片長寬比例}\".\n\n[Visual Style]\nRendered in \"{媒材與渲染技術}\". Centerpiece motif: \"{節慶核心元素}\", enhanced by \"{節日慶祝特效}\". Framed with \"{鏡頭視角}\" and rich festive colors of \"{節日氛圍色調}\".\n\n[Typography & Layout]\n1. Include a tailored seasonal greeting message.\n2. Display a decorative framed signature at the bottom-right: \"琦閔~祝福您\".\n3. Show today's date beneath the signature: {今日日期}.",
                 variables = listOf(
                     FormulaVariable("圖片長寬比例", commonAspectRatioOptions),
                     FormulaVariable("媒材與渲染技術", commonMediaOptions),
@@ -160,12 +171,16 @@ internal object PromptCatalogSpecialAndMedia {
         name = "🎬 動態影音腳本 (Sora/Runway)",
         shortTitle = "動態影音",
         tag = "Sora/Runway",
-        formulas = listOf(
-            PromptFormula(
+        type = GreetingPromptType.VIDEO,
+        prompts = listOf(
+            GreetingPrompt(
                 id = "video_short",
                 dimensionId = "video",
-                name = "動態問候短影音",
-                pattern = "身為專業的 AI 動態影像導演，請為我生成一段長寬比「{圖片長寬比例}」，約 5-10 秒的高畫質問候短影音提示詞。\n\n【動態影像設定】\n畫面風格採用「{動態視覺風格}」。主體呈現「{核心動態事件}」，請採用「{電影級運鏡手法}」來引導觀眾視線。整體影片的步調保持「{影片節奏與氛圍}」。\n\n【文字與後製指示 (若工具支援)】\n影片後半段，畫面中央需平滑淡入優美的英文字體 (早/午/晚) 問候語。影片右下角常駐浮水印：「琦閔」以及今日日期：{今日日期}。",
+                title = "動態問候短影音",
+                type = GreetingPromptType.VIDEO,
+                mediaTags = listOf(MediaTag.VIDEO, MediaTag.IMAGE),
+                template = "身為專業的 AI 動態影像導演，請為我生成一段長寬比「{圖片長寬比例}」，約 5-10 秒的高畫質問候短影音提示詞。\n\n【動態影像設定】\n畫面風格採用「{動態視覺風格}」。主體呈現「{核心動態事件}」，請採用「{電影級運鏡手法}」來引導觀眾視線。整體影片的步調保持「{影片節奏與氛圍}」。\n\n【文字與後製指示 (若工具支援)】\n影片後半段，畫面中央需平滑淡入優美的英文字體 (早/午/晚) 問候語。影片右下角常駐浮水印：「琦閔」以及今日日期：{今日日期}。",
+                englishTranslation = "Direct a 5-10 second high-definition greeting video in aspect ratio \"{圖片長寬比例}\".\n\n[Motion & Cinematography]\nVisual style: \"{動態視覺風格}\". Primary motion event: \"{核心動態事件}\", guided by \"{電影級運鏡手法}\". Maintain a pacing and mood of \"{影片節奏與氛圍}\".\n\n[Post-Production Overlay]\nSmoothly fade in an elegant greeting title in the second half. Keep a subtle watermark at the bottom-right: \"琦閔\" with date {今日日期}.",
                 variables = listOf(
                     FormulaVariable("圖片長寬比例", commonAspectRatioOptions),
                     FormulaVariable(
@@ -224,12 +239,16 @@ internal object PromptCatalogSpecialAndMedia {
         name = "🎵 AI 音樂生成腳本 (Suno/Udio)",
         shortTitle = "AI 音樂腳本",
         tag = "Suno/Udio",
-        formulas = listOf(
-            PromptFormula(
+        type = GreetingPromptType.MUSIC,
+        prompts = listOf(
+            GreetingPrompt(
                 id = "music_bgm",
                 dimensionId = "music",
-                name = "情境純音樂配樂 (BGM)",
-                pattern = "身為專業的 AI 音樂製作人，請為我生成一段高品質的純音樂提示詞 (Prompt)。\n\n【音樂風格設定】\n請融合「{音樂流派與曲風}」與「{主導樂器}」。整體節奏設定為「{BPM與節奏感}」。\n\n【氛圍與聽感】\n這首曲子需要傳達「{情感與氛圍}」的感覺，並在背景加入微弱的「{環境音效 (Foley/ASMR)}」以增加沉浸感。\n\n【結構指示】\n無需人聲 (Instrumental only)。請以平緩的 Intro 開始，中段稍微揚起，最後以溫柔的 Outro 漸弱收尾。",
+                title = "情境純音樂配樂 (BGM)",
+                type = GreetingPromptType.MUSIC,
+                mediaTags = listOf(MediaTag.MUSIC, MediaTag.BGM),
+                template = "身為專業的 AI 音樂製作人，請為我生成一段高品質的純音樂提示詞 (Prompt)。\n\n【音樂風格設定】\n請融合「{音樂流派與曲風}」與「{主導樂器}」。整體節奏設定為「{BPM與節奏感}」。\n\n【氛圍與聽感】\n這首曲子需要傳達「{情感與氛圍}」的感覺，並在背景加入微弱的「{環境音效 (Foley/ASMR)}」以增加沉浸感。\n\n【結構指示】\n無需人聲 (Instrumental only)。請以平緩的 Intro 開始，中段稍微揚起，最後以溫柔的 Outro 漸弱收尾。",
+                englishTranslation = "Compose a high-fidelity instrumental BGM prompt.\n\n[Style & Instrumentation]\nBlend \"{音樂流派與曲風}\" with lead \"{主導樂器}\" at \"{BPM與節奏感}\".\n\n[Atmosphere]\nEvoke \"{情感與氛圍}\" layered with subtle ambient foley: \"{環境音效 (Foley/ASMR)}\".\n\n[Structure]\nInstrumental only. Gentle intro, warm expressive middle lift, and soft fading outro.",
                 variables = listOf(
                     FormulaVariable(
                         "音樂流派與曲風",
@@ -275,11 +294,14 @@ internal object PromptCatalogSpecialAndMedia {
                     )
                 )
             ),
-            PromptFormula(
+            GreetingPrompt(
                 id = "music_vocal",
                 dimensionId = "music",
-                name = "專屬問候人聲歌曲 (Vocal)",
-                pattern = "身為專業的 AI 音樂製作人與作詞家，請為我生成一段完整的人聲歌曲提示詞 (Prompt) 與歌詞。\n\n【音樂風格設定】\n曲風為「{音樂流派與曲風}」，由「{歌手聲線}」演唱。主導樂器為「{主導樂器}」，節奏為「{BPM與節奏感}」。\n\n【氛圍與聽感】\n整體氛圍為「{情感與氛圍}」。\n\n【歌詞結構指示】\n請為我撰寫包含 [Verse]、[Chorus]、[Outro] 的短版歌詞，主題環繞著美好的問候與生活祝福。\n結尾的 [Outro] 歌詞必須包含專屬署名：「願你擁有美好的一刻，這裡是琦閔的祝福。」",
+                title = "專屬問候人聲歌曲 (Vocal)",
+                type = GreetingPromptType.MUSIC,
+                mediaTags = listOf(MediaTag.MUSIC, MediaTag.VOCAL),
+                template = "身為專業的 AI 音樂製作人與作詞家，請為我生成一段完整的人聲歌曲提示詞 (Prompt) 與歌詞。\n\n【音樂風格設定】\n曲風為「{音樂流派與曲風}」，由「{歌手聲線}」演唱。主導樂器為「{主導樂器}」，節奏為「{BPM與節奏感}」。\n\n【氛圍與聽感】\n整體氛圍為「{情感與氛圍}」。\n\n【歌詞結構指示】\n請為我撰寫包含 [Verse]、[Chorus]、[Outro] 的短版歌詞，主題環繞著美好的問候與生活祝福。\n結尾的 [Outro] 歌詞必須包含專屬署名：「願你擁有美好的一刻，這裡是琦閔的祝福。」",
+                englishTranslation = "Produce a vocal greeting song prompt and short lyrics.\n\n[Style & Vocal]\nGenre: \"{音樂流派與曲風}\", performed by \"{歌手聲線}\", backed by \"{主導樂器}\" at \"{BPM與節奏感}\". Overall vibe: \"{情感與氛圍}\".\n\n[Lyrics Structure]\nWrite concise [Verse], [Chorus], and [Outro] sections celebrating daily warmth and blessings. End the [Outro] with the signature wish: \"Wishing you a wonderful moment, blessings from 琦閔.\"",
                 variables = listOf(
                     FormulaVariable(
                         "歌手聲線",

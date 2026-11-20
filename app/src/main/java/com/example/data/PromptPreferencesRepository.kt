@@ -93,6 +93,13 @@ class PromptPreferencesRepository(private val context: Context) {
         }
     }
 
+    suspend fun saveSignatureAndDateToggles(showSignature: Boolean, showDate: Boolean) {
+        context.promptDataStore.edit { prefs ->
+            prefs[Keys.SHOW_SIGNATURE] = showSignature
+            prefs[Keys.SHOW_DATE] = showDate
+        }
+    }
+
     suspend fun saveImageCountOptions(options: List<String>) {
         context.promptDataStore.edit { prefs ->
             prefs[Keys.SAVED_IMAGE_COUNTS] = encodeStringList(options)

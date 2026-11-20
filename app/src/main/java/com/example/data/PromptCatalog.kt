@@ -11,5 +11,11 @@ object PromptCatalog {
         PromptCatalogSpecialAndMedia.musicDimension
     )
 
-    val allFormulas: List<PromptFormula> = dimensions.flatMap { it.formulas }
+    val allPrompts: List<GreetingPrompt> = dimensions.flatMap { it.prompts }
+
+    fun promptsByType(type: GreetingPromptType): List<GreetingPrompt> =
+        allPrompts.filter { it.type == type }
+
+    fun promptsByMediaTag(tag: MediaTag): List<GreetingPrompt> =
+        allPrompts.filter { tag in it.mediaTags }
 }

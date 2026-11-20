@@ -11,12 +11,16 @@ internal object PromptCatalogDaily {
         name = "🌅 早安系列 (充滿朝氣)",
         shortTitle = "早安系列",
         tag = "充滿朝氣",
-        formulas = listOf(
-            PromptFormula(
+        type = GreetingPromptType.MORNING,
+        prompts = listOf(
+            GreetingPrompt(
                 id = "morning_landscape",
                 dimensionId = "morning",
-                name = "絕美晨間風景",
-                pattern = "身為專業早安圖設計師，在生成前請先搜尋並分析近期網路熱門早安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質早安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。背景是「{晨間壯麗地貌}」，並沐浴在「{晨間光影特效}」之中。請使用「{鏡頭視角}」捕捉畫面，整體散發出「{早晨情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需簡短優美且具巧思的【早安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                title = "絕美晨間風景",
+                type = GreetingPromptType.MORNING,
+                mediaTags = listOf(MediaTag.IMAGE),
+                template = "身為專業早安圖設計師，在生成前請先搜尋並分析近期網路熱門早安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質早安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。背景是「{晨間壯麗地貌}」，並沐浴在「{晨間光影特效}」之中。請使用「{鏡頭視角}」捕捉畫面，整體散發出「{早晨情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需簡短優美且具巧思的【早安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                englishTranslation = "Create a high-resolution Good Morning greeting image in aspect ratio \"{圖片長寬比例}\".\n\n[Visual Style]\nRendered in \"{媒材與渲染技術}\". The scene depicts \"{晨間壯麗地貌}\", bathed in \"{晨間光影特效}\". Captured with \"{鏡頭視角}\", radiating an emotional color palette of \"{早晨情感色調}\".\n\n[Typography & Layout]\n1. Include a brief, poetic Good Morning greeting message.\n2. Place a stylized signature at the bottom-right corner: \"琦閔~祝福您\".\n3. Display today's date clearly beneath the signature: {今日日期}.",
                 variables = listOf(
                     FormulaVariable("圖片長寬比例", commonAspectRatioOptions),
                     FormulaVariable("媒材與渲染技術", commonMediaOptions),
@@ -67,11 +71,14 @@ internal object PromptCatalogDaily {
                     )
                 )
             ),
-            PromptFormula(
+            GreetingPrompt(
                 id = "morning_coffee",
                 dimensionId = "morning",
-                name = "晨間咖啡與靜物",
-                pattern = "身為專業早安圖設計師，在生成前請先搜尋並分析近期網路熱門早安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質早安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體為桌上的「{早晨靜物主體}」，旁邊點綴著「{晨間裝飾物件}」。背景是模糊的「{早晨窗外景色}」。請使用「{鏡頭視角}」讓畫面具備生活儀式感。\n\n【文字與排版設定】\n1. 圖片中需簡短優美且具巧思的【早安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                title = "晨間咖啡與靜物",
+                type = GreetingPromptType.MORNING,
+                mediaTags = listOf(MediaTag.IMAGE),
+                template = "身為專業早安圖設計師，在生成前請先搜尋並分析近期網路熱門早安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質早安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體為桌上的「{早晨靜物主體}」，旁邊點綴著「{晨間裝飾物件}」。背景是模糊的「{早晨窗外景色}」。請使用「{鏡頭視角}」讓畫面具備生活儀式感。\n\n【文字與排版設定】\n1. 圖片中需簡短優美且具巧思的【早安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                englishTranslation = "Create a cozy, high-resolution Good Morning still-life greeting card in aspect ratio \"{圖片長寬比例}\".\n\n[Visual Style]\nStyled in \"{媒材與渲染技術}\". Centerpiece on the table: \"{早晨靜物主體}\", accented by \"{晨間裝飾物件}\". Softly blurred window view of \"{早晨窗外景色}\" in the background, shot using \"{鏡頭視角}\".\n\n[Typography & Layout]\n1. Include a warm, elegant Good Morning greeting message.\n2. Display a stylized signature at the bottom-right corner: \"琦閔~祝福您\".\n3. Show today's date cleanly beneath the signature: {今日日期}.",
                 variables = listOf(
                     FormulaVariable("圖片長寬比例", commonAspectRatioOptions),
                     FormulaVariable("媒材與渲染技術", commonMediaOptions),
@@ -124,12 +131,16 @@ internal object PromptCatalogDaily {
         name = "☀️ 午安系列 (慵懶與提神)",
         shortTitle = "午安系列",
         tag = "慵懶提神",
-        formulas = listOf(
-            PromptFormula(
+        type = GreetingPromptType.AFTERNOON,
+        prompts = listOf(
+            GreetingPrompt(
                 id = "afternoon_relax",
                 dimensionId = "afternoon",
-                name = "午後陽光與放鬆",
-                pattern = "身為專業午安圖設計師，在生成前請先搜尋並分析近期網路熱門午安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質午安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。背景是「{午後悠閒場景}」，畫面中充滿「{午後光影特徵}」。請使用「{鏡頭視角}」捕捉畫面，整體散發出「{午後情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【午安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                title = "午後陽光與放鬆",
+                type = GreetingPromptType.AFTERNOON,
+                mediaTags = listOf(MediaTag.IMAGE),
+                template = "身為專業午安圖設計師，在生成前請先搜尋並分析近期網路熱門午安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質午安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。背景是「{午後悠閒場景}」，畫面中充滿「{午後光影特徵}」。請使用「{鏡頭視角}」捕捉畫面，整體散發出「{午後情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【午安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                englishTranslation = "Create a relaxing, high-resolution Good Afternoon greeting card in aspect ratio \"{圖片長寬比例}\".\n\n[Visual Style]\nRendered in \"{媒材與渲染技術}\". Setting: \"{午後悠閒場景}\" filled with \"{午後光影特徵}\". Composed from \"{鏡頭視角}\", conveying a palette of \"{午後情感色調}\".\n\n[Typography & Layout]\n1. Include a refined, uplifting Good Afternoon blessing.\n2. Display a creative signature at the bottom-right: \"琦閔~祝福您\".\n3. Show today's date cleanly beneath the signature: {今日日期}.",
                 variables = listOf(
                     FormulaVariable("圖片長寬比例", commonAspectRatioOptions),
                     FormulaVariable("媒材與渲染技術", commonMediaOptions),
@@ -174,11 +185,14 @@ internal object PromptCatalogDaily {
                     )
                 )
             ),
-            PromptFormula(
+            GreetingPrompt(
                 id = "afternoon_tea",
                 dimensionId = "afternoon",
-                name = "下午茶與精緻甜點",
-                pattern = "身為專業午安圖設計師，在生成前請先搜尋並分析近期網路熱門午安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質午安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是令人垂涎的「{下午茶甜點}」，搭配飲品「{午後飲品}」。周圍裝飾著「{精緻點綴物}」。請使用「{鏡頭視角}」讓畫面充滿食慾與幸福感。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【午安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                title = "下午茶與精緻甜點",
+                type = GreetingPromptType.AFTERNOON,
+                mediaTags = listOf(MediaTag.IMAGE),
+                template = "身為專業午安圖設計師，在生成前請先搜尋並分析近期網路熱門午安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質午安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是令人垂涎的「{下午茶甜點}」，搭配飲品「{午後飲品}」。周圍裝飾著「{精緻點綴物}」。請使用「{鏡頭視角}」讓畫面充滿食慾與幸福感。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【午安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                englishTranslation = "Create an appetizing, high-resolution Afternoon Tea greeting image in aspect ratio \"{圖片長寬比例}\".\n\n[Visual Style]\nRendered in \"{媒材與渲染技術}\". Hero subject: \"{下午茶甜點}\" paired with \"{午後飲品}\", styled with \"{精緻點綴物}\". Captured via \"{鏡頭視角}\" for rich culinary warmth.\n\n[Typography & Layout]\n1. Include a sweet, thoughtful Good Afternoon greeting.\n2. Display a stylized signature at the bottom-right: \"琦閔~祝福您\".\n3. Show today's date beneath the signature: {今日日期}.",
                 variables = listOf(
                     FormulaVariable("圖片長寬比例", commonAspectRatioOptions),
                     FormulaVariable("媒材與渲染技術", commonMediaOptions),
@@ -233,12 +247,16 @@ internal object PromptCatalogDaily {
         name = "🌙 晚安系列 (沉靜與療癒)",
         shortTitle = "晚安系列",
         tag = "沉靜療癒",
-        formulas = listOf(
-            PromptFormula(
+        type = GreetingPromptType.NIGHT,
+        prompts = listOf(
+            GreetingPrompt(
                 id = "night_sky",
                 dimensionId = "night",
-                name = "寧靜夜景與星空",
-                pattern = "身為專業晚安圖設計師，在生成前請先搜尋並分析近期網路熱門晚安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質晚安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。背景是深邃的「{迷人夜景地貌}」，天空呈現「{夜空與天體特徵}」。請使用「{鏡頭視角}」捕捉這份寧靜，整體散發出「{夜晚情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【晚安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                title = "寧靜夜景與星空",
+                type = GreetingPromptType.NIGHT,
+                mediaTags = listOf(MediaTag.IMAGE),
+                template = "身為專業晚安圖設計師，在生成前請先搜尋並分析近期網路熱門晚安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質晚安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。背景是深邃的「{迷人夜景地貌}」，天空呈現「{夜空與天體特徵}」。請使用「{鏡頭視角}」捕捉這份寧靜，整體散發出「{夜晚情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【晚安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                englishTranslation = "Create a serene, high-resolution Good Night greeting image in aspect ratio \"{圖片長寬比例}\".\n\n[Visual Style]\nRendered in \"{媒材與渲染技術}\". Deep tranquil setting of \"{迷人夜景地貌}\" beneath a night sky featuring \"{夜空與天體特徵}\". Framed with \"{鏡頭視角}\" in an atmospheric palette of \"{夜晚情感色調}\".\n\n[Typography & Layout]\n1. Include a gentle, poetic Good Night blessing.\n2. Display a stylized signature at the bottom-right: \"琦閔~祝福您\".\n3. Show today's date beneath the signature: {今日日期}.",
                 variables = listOf(
                     FormulaVariable("圖片長寬比例", commonAspectRatioOptions),
                     FormulaVariable("媒材與渲染技術", commonMediaOptions),
@@ -287,11 +305,14 @@ internal object PromptCatalogDaily {
                     )
                 )
             ),
-            PromptFormula(
+            GreetingPrompt(
                 id = "night_cozy",
                 dimensionId = "night",
-                name = "室內療癒助眠",
-                pattern = "身為專業晚安圖設計師，在生成前請先搜尋並分析近期網路熱門晚安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質晚安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是溫馨室內的一角：「{睡前溫馨場景}」，光源來自「{夜晚溫暖光源}」。請使用「{鏡頭視角}」，營造出一種讓人想立刻鑽進被窩的「{助眠氛圍}」。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【晚安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                title = "室內療癒助眠",
+                type = GreetingPromptType.NIGHT,
+                mediaTags = listOf(MediaTag.IMAGE),
+                template = "身為專業晚安圖設計師，在生成前請先搜尋並分析近期網路熱門晚安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質晚安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是溫馨室內的一角：「{睡前溫馨場景}」，光源來自「{夜晚溫暖光源}」。請使用「{鏡頭視角}」，營造出一種讓人想立刻鑽進被窩的「{助眠氛圍}」。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【晚安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                englishTranslation = "Create a comforting, sleep-inducing Good Night greeting image in aspect ratio \"{圖片長寬比例}\".\n\n[Visual Style]\nRendered in \"{媒材與渲染技術}\". Cozy indoor corner featuring \"{睡前溫馨場景}\" illuminated by \"{夜晚溫暖光源}\". Captured with \"{鏡頭視角}\" to evoke \"{助眠氛圍}\".\n\n[Typography & Layout]\n1. Include a soothing Good Night message.\n2. Display a stylized signature at the bottom-right: \"琦閔~祝福您\".\n3. Show today's date beneath the signature: {今日日期}.",
                 variables = listOf(
                     FormulaVariable("圖片長寬比例", commonAspectRatioOptions),
                     FormulaVariable("媒材與渲染技術", commonMediaOptions),

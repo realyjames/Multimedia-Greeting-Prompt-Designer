@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.HorizontalDivider
@@ -43,18 +44,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.data.GreetingPrompt
 import com.example.data.PromptDimension
-import com.example.data.PromptFormula
 
 @Composable
 fun SidebarMenuContent(
     dimensions: List<PromptDimension>,
     expandedDimensionIds: Set<String>,
-    selectedFormulaId: String?,
+    selectedPromptId: String?,
+    isGreetingEditorActive: Boolean,
     showCloseButton: Boolean,
     onCloseDrawer: () -> Unit,
+    onOpenGreetingEditor: () -> Unit,
     onToggleDimension: (String) -> Unit,
-    onSelectFormula: (PromptFormula) -> Unit,
+    onSelectPrompt: (GreetingPrompt) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -100,7 +103,7 @@ fun SidebarMenuContent(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "7 大維度 · 12 套專業公式",
+                        text = "7 大維度 · 12 套 GreetingPrompt",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -124,6 +127,64 @@ fun SidebarMenuContent(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
+        // Greeting Editor Quick Destination
+        Surface(
+            color = if (isGreetingEditorActive) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            },
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { onOpenGreetingEditor() }
+                .testTag("sidebar_greeting_editor_item")
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.EditNote,
+                    contentDescription = null,
+                    tint = if (isGreetingEditorActive) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.editor_screen_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isGreetingEditorActive) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        }
+                    )
+                    Text(
+                        text = "類型下拉 · 提示詞 · 自訂署名",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isGreetingEditorActive) {
+                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -138,7 +199,6 @@ fun SidebarMenuContent(
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
-                    // Dimension Accordion Header
                     Surface(
                         color = if (isExpanded) {
                             MaterialTheme.colorScheme.surfaceContainer
@@ -178,7 +238,6 @@ fun SidebarMenuContent(
                         }
                     }
 
-                    // Formula List Items
                     AnimatedVisibility(
                         visible = isExpanded,
                         enter = expandVertically(),
@@ -190,8 +249,8 @@ fun SidebarMenuContent(
                                 .padding(top = 4.dp, start = 8.dp, end = 4.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            dimension.formulas.forEach { formula ->
-                                val isSelected = formula.id == selectedFormulaId
+                            dimension.prompts.forEach { prompt ->
+                                val isSelected = prompt.id == selectedPromptId
                                 Surface(
                                     color = if (isSelected) {
                                         MaterialTheme.colorScheme.primaryContainer
@@ -202,8 +261,8 @@ fun SidebarMenuContent(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(10.dp))
-                                        .clickable { onSelectFormula(formula) }
-                                        .testTag("formula_item_${formula.id}")
+                                        .clickable { onSelectPrompt(prompt) }
+                                        .testTag("formula_item_${prompt.id}")
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -223,7 +282,7 @@ fun SidebarMenuContent(
                                         )
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Text(
-                                            text = formula.name,
+                                            text = prompt.title,
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                             color = if (isSelected) {
@@ -233,6 +292,27 @@ fun SidebarMenuContent(
                                             },
                                             modifier = Modifier.weight(1f)
                                         )
+                                        prompt.mediaTags.firstOrNull()?.let { tag ->
+                                            Surface(
+                                                color = if (isSelected) {
+                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceContainer
+                                                },
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = tag.displayName,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = if (isSelected) {
+                                                        MaterialTheme.colorScheme.primary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                                    },
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }

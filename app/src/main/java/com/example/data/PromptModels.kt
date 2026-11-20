@@ -11,20 +11,13 @@ data class FormulaVariable(
     val defaultOptions: List<String>
 )
 
-data class PromptFormula(
-    val id: String,
-    val dimensionId: String,
-    val name: String,
-    val pattern: String,
-    val variables: List<FormulaVariable>
-)
-
 data class PromptDimension(
     val id: String,
     val name: String,
     val shortTitle: String,
     val tag: String,
-    val formulas: List<PromptFormula>
+    val type: GreetingPromptType,
+    val prompts: List<GreetingPrompt>
 )
 
 data class AttachedFileItem(

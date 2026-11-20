@@ -1,6 +1,6 @@
 {
-  "name": "問候提示詞設計師",
-  "description": "AI 全媒體問候提示詞設計師，支援早午晚安、生日、節慶、動態影音與 AI 音樂提示詞組合、自訂署名與自動英譯語庫管理。",
+  "name": "AI全媒體問候提示詞設計師圖影生成器",
+  "description": "AI全媒體問候提示詞設計師圖影生成器，支援早午晚安、生日、節慶、動態影音與 AI 音樂提示詞組合、自訂署名、Gemini 流暢英譯以及 AI 繪圖與問候影片生成。",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
