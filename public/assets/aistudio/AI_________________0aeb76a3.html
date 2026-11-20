@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <!-- 加入 viewport-fit=cover 支援 iPhone 瀏海屏 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AI 全媒體問候提示詞設計師(開源正式版)</title>
+    <style>
+        :root {
+            --primary-color: #333333;
+            --bg-color: #ffffff;
+            --sidebar-bg: #f8f9fa;
+            --border-color: #e0e0e0;
+            --hover-color: #f1f3f5;
+            --btn-color: #000000;
+            --btn-text: #ffffff;
+        }
+        
+        * { 
+            box-sizing: border-box; 
+            /* 優先使用 Apple 系統字體 */
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            /* 移除 iOS 點擊時的灰色高光背景 */
+            -webkit-tap-highlight-color: transparent; 
+        }
+        
+        html { 
+            /* 解決 Safari 底部導覽列造成的 100vh 跑版問題 */
+            height: -webkit-fill-available;
+            background-color: #000; /* 手機版外圍背景設為深色或與主題相近 */
+        }
+        
+        body { 
+            margin: 0 auto; 
+            display: flex; 
+            width: 100%; 
+            max-width: 100%; /* 放寬為 100% 滿版適配所有手機螢幕 */
+            /* 使用動態視口高度 dvh，並向下相容 */
+            height: 100dvh; 
+            min-height: -webkit-fill-available; 
+            background-color: var(--bg-color); 
+            color: var(--primary-color); 
+            position: relative; 
+            overflow: hidden; 
+            /* 適配 iPhone 安全區域 (Notch / Home bar) */
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-top: env(safe-area-inset-top);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+        
+        .overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 900; }
+        .overlay.active { display: block; }
+        
+        .sidebar { 
+            position: absolute; left: -100%; top: 0; height: 100%; width: 280px; max-width: 80vw;
+            background-color: var(--sidebar-bg); display: flex; flex-direction: column; 
+            transition: left 0.3s ease; overflow-y: auto; z-index: 1000; box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+            -webkit-overflow-scrolling: touch; /* iOS 慣性滑動 */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .sidebar.active { left: 0; }
+        
+        .sidebar-header { padding: 20px 15px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background-color: #fff; position: sticky; top: 0; z-index: 10; }
+        .sidebar-header h2 { margin: 0; font-size: 1.1rem; }
+        .close-btn { background: none; border: none; font-size: 1.5rem; color: #666; cursor: pointer; padding: 0; }
+        .dimension-group { margin-bottom: 5px; }
+        .dimension-title { padding: 15px; font-weight: bold; background: #f1f3f5; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; font-size: 1rem;}
+        .formula-list { list-style: none; padding: 0; margin: 0; }
+        .formula-item { padding: 12px 15px 12px 30px; cursor: pointer; border-bottom: 1px solid #f0f0f0; transition: background 0.2s; font-size: 0.95rem; }
+        .formula-item:hover, .formula-item.active { background-color: #e9ecef; border-left: 4px solid var(--btn-color); padding-left: 26px; font-weight: bold;}
+        
+        .main-content { 
+            flex: 1; display: flex; flex-direction: column; overflow-y: auto; scroll-behavior: smooth; width: 100%; 
+            -webkit-overflow-scrolling: touch; /* iOS 慣性滑動 */
+        }
+        
+        .topbar { padding: 15px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; background-color: #fff; position: sticky; top: 0; z-index: 10;}
+        .toggle-btn { background: none; border: 1px solid var(--border-color); padding: 5px 12px; cursor: pointer; border-radius: 4px; margin-right: 15px; font-size: 1.2rem; }
+        .topbar-title { font-weight: bold; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .content-body { padding: 20px 15px; width: 100%; }
+        h1 { margin-top: 0; border-bottom: 2px solid var(--primary-color); padding-bottom: 10px; font-size: 1.2rem; line-height: 1.3; }
+        
+        .section-card { border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); background: #fff;}
+        .section-card h3 { margin-top: 0; margin-bottom: 15px; color: #444; border-left: 4px solid var(--primary-color); padding-left: 10px; font-size: 1.05rem;}
+        
+        .var-row { margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px dashed #eee; }
+        .var-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        .var-row label { display: block; font-weight: bold; margin-bottom: 8px; color: #222; font-size: 0.95rem;}
+        
+        .setting-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-weight: bold; font-size: 0.95rem; color: #222;}
+        .setting-row input[type="checkbox"] { width: 22px; height: 22px; cursor: pointer; accent-color: var(--primary-color); }
+        .input-group { display: flex; gap: 10px; flex-direction: column;}
+        
+        /* 核心優化：iOS 表單元素防縮放與樣式統一 */
+        select, input[type="text"], textarea { 
+            width: 100%; 
+            padding: 12px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 6px; 
+            font-size: 16px !important; /* CRITICAL: 防止 iOS Safari 點擊時強制放大畫面 */
+            background-color: #fafafa; 
+            -webkit-appearance: none; /* 移除 iOS 預設樣式 */
+            appearance: none;
+        }
+        
+        /* 自訂 select 的下拉箭頭 (因 appearance:none 會隱藏預設箭頭) */
+        select {
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23333%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+            background-repeat: no-repeat;
+            background-position: right 15px top 50%;
+            background-size: 12px auto;
+            padding-right: 40px;
+        }
+        
+        select:focus, input:focus, textarea:focus { outline: none; border-color: #555; background-color: #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.1);}
+        
+        .sig-dropdown { border: 1px solid var(--border-color); border-radius: 6px; background: #fafafa; margin-bottom: 5px; }
+        .sig-summary { padding: 12px 15px; font-weight: bold; font-size: 0.95rem; cursor: pointer; list-style: none; user-select: none; display: flex; justify-content: space-between; align-items: center; color: #444;}
+        .sig-summary::-webkit-details-marker { display: none; }
+        .sig-dropdown[open] .sig-summary { border-bottom: 1px solid var(--border-color); background: #f1f3f5; color: #000;}
+        .sig-slots-wrapper { padding: 15px; display: flex; flex-direction: column; gap: 12px; background: #fff; border-radius: 0 0 6px 6px; max-height: 250px; overflow-y: auto; -webkit-overflow-scrolling: touch;}
+        .sig-slot { display: flex; align-items: center; gap: 10px; }
+        .sig-slot input[type="radio"] { width: 22px; height: 22px; accent-color: var(--primary-color); cursor: pointer; flex-shrink: 0;}
+        .sig-slot input[type="text"] { flex: 1; padding: 10px; background: #fff; }
+
+        .context-tabs { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        .tab-btn { padding: 10px 5px; border: 1px solid var(--border-color); background: #f8f9fa; cursor: pointer; border-radius: 6px; font-weight: bold; color: #555; flex: 1 1 30%; text-align: center; font-size: 0.85rem;}
+        .tab-btn.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color);}
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .output-area textarea { width: 100%; height: 250px; resize: none; line-height: 1.5; font-family: 'Consolas', 'Courier New', monospace; font-size: 16px; padding: 15px; background: #fdfdfd;}
+        
+        .action-btns { display: flex; gap: 10px; margin-top: 15px; flex-direction: column;}
+        button.primary-btn { background: var(--btn-color); color: var(--btn-text); border: none; padding: 15px; border-radius: 6px; cursor: pointer; font-size: 1.05rem; font-weight: bold; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.1s;}
+        button.primary-btn:active { opacity: 0.85; transform: scale(0.98); } /* 手機端點擊回饋 */
+        button.secondary-btn { background: #fff; color: var(--btn-color); border: 2px solid var(--btn-color); padding: 12px; border-radius: 6px; cursor: pointer; font-size: 1rem; font-weight: bold; width: 100%; transition: transform 0.1s;}
+        button.secondary-btn:active { background: #f1f1f1; transform: scale(0.98); }
+        .date-info { margin-top: 15px; font-size: 0.9rem; color: #666; font-weight: bold; text-align: center;}
+    </style>
+</head>
+<body>
+
+    <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>全天候語庫 (終極版)</h2>
+            <button class="close-btn" onclick="toggleSidebar()">×</button>
+        </div>
+        <div id="sidebar-menu"></div>
+    </div>
+
+    <div class="main-content">
+        <div class="topbar">
+            <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
+            <span class="topbar-title">AI 全媒體問候設計師(手機優化版)</span>
+        </div>
+        
+        <div class="content-body">
+            <h1 id="formula-title">👈 請由左上角選單選擇公式</h1>
+            
+            <div class="section-card" id="general-settings-section" style="display: none;">
+                <h3>⚙️ 通用排版設定</h3>
+                
+                <!-- 署名設定列 -->
+                <div class="setting-row" style="margin-bottom: 5px;">
+                    <label style="margin-bottom: 0;">🔹 自訂署名 (打字即記憶)</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label for="show-signature" style="margin-bottom: 0; font-size: 0.9rem; color: #555; cursor: pointer;">顯示署名</label>
+                        <input type="checkbox" id="show-signature" checked>
+                    </div>
+                </div>
+                
+                <details class="sig-dropdown" id="sig-dropdown">
+                    <summary class="sig-summary">
+                        <span id="current-sig-display">點此展開選取署名 ▼</span>
+                    </summary>
+                    <div class="sig-slots-wrapper">
+                        <div class="sig-slot">
+                            <input type="radio" name="sig-select" id="sig-radio-0" value="0" onchange="saveSignatures()" checked>
+                            <input type="text" id="sig-input-0" placeholder="欄位 1 (例如: 琦閔~祝福您)" oninput="saveSignatures()">
+                        </div>
+                        <div class="sig-slot">
+                            <input type="radio" name="sig-select" id="sig-radio-1" value="1" onchange="saveSignatures()">
+                            <input type="text" id="sig-input-1" placeholder="欄位 2" oninput="saveSignatures()">
+                        </div>
+                        <div class="sig-slot">
+                            <input type="radio" name="sig-select" id="sig-radio-2" value="2" onchange="saveSignatures()">
+                            <input type="text" id="sig-input-2" placeholder="欄位 3" oninput="saveSignatures()">
+                        </div>
+                        <div class="sig-slot">
+                            <input type="radio" name="sig-select" id="sig-radio-3" value="3" onchange="saveSignatures()">
+                            <input type="text" id="sig-input-3" placeholder="欄位 4" oninput="saveSignatures()">
+                        </div>
+                        <div class="sig-slot">
+                            <input type="radio" name="sig-select" id="sig-radio-4" value="4" onchange="saveSignatures()">
+                            <input type="text" id="sig-input-4" placeholder="欄位 5" oninput="saveSignatures()">
+                        </div>
+                        <div class="sig-slot">
+                            <input type="radio" name="sig-select" id="sig-radio-5" value="5" onchange="saveSignatures()">
+                            <input type="text" id="sig-input-5" placeholder="欄位 6" oninput="saveSignatures()">
+                        </div>
+                        <div class="sig-slot">
+                            <input type="radio" name="sig-select" id="sig-radio-6" value="6" onchange="saveSignatures()">
+                            <input type="text" id="sig-input-6" placeholder="欄位 7" oninput="saveSignatures()">
+                        </div>
+                        <div class="sig-slot">
+                            <input type="radio" name="sig-select" id="sig-radio-7" value="7" onchange="saveSignatures()">
+                            <input type="text" id="sig-input-7" placeholder="欄位 8" oninput="saveSignatures()">
+                        </div>
+                        <div class="sig-slot">
+                            <input type="radio" name="sig-select" id="sig-radio-8" value="8" onchange="saveSignatures()">
+                            <input type="text" id="sig-input-8" placeholder="欄位 9" oninput="saveSignatures()">
+                        </div>
+                        <div class="sig-slot">
+                            <input type="radio" name="sig-select" id="sig-radio-9" value="9" onchange="saveSignatures()">
+                            <input type="text" id="sig-input-9" placeholder="欄位 10" oninput="saveSignatures()">
+                        </div>
+                    </div>
+                </details>
+
+                <!-- 日期設定列 -->
+                <div class="setting-row" style="margin-top: 20px;">
+                    <label for="show-date" style="cursor: pointer;">🔹 於圖片/影片中顯示日期</label>
+                    <input type="checkbox" id="show-date" checked>
+                </div>
+
+                
+                <!-- 🌟 生成圖片張數設定列 -->
+                <div class="setting-row" style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px; margin-bottom: 5px;">
+                    <label style="margin-bottom: 0;">🔹 生成圖片張數 (獨立多圖生成)</label>
+                </div>
+                <p style="font-size: 0.85rem; color: #555; margin: 0 0 10px 0; font-weight: normal;">* 系統將自動強化提示詞，強制 AI 分別輸出多張獨立圖片，避免產生單張四宮格/九宮格等分割畫面。</p>
+                <div class="input-group" style="margin-bottom: 10px;">
+                    <div style="display: flex; gap: 8px; width: 100%;">
+                        <select id="image-count-select" onchange="handleImageCountSelectChange()" style="flex: 1;"></select>
+                        <button type="button" id="edit-image-count-btn" onclick="toggleEditImageCountMode()" class="secondary-btn" style="width: auto; padding: 0 12px; font-size: 0.9rem; height: 44px; margin: 0;">✏️ 編輯</button>
+                    </div>
+                    
+                    <!-- 編輯模式：刪除與復原 -->
+                    <div id="edit-image-count-actions" style="display: none; gap: 8px; margin-top: 5px; flex-direction: row; flex-wrap: wrap; justify-content: flex-end;">
+                        <button type="button" onclick="deleteSelectedImageCount()" class="secondary-btn" style="width: auto; padding: 0 10px; font-size: 0.85rem; height: 38px; margin: 0; color: #d32f2f; border-color: #d32f2f;">🗑️ 刪除選項</button>
+                        <button type="button" onclick="restoreDefaultImageCounts(true)" class="secondary-btn" style="width: auto; padding: 0 10px; font-size: 0.85rem; height: 38px; margin: 0;">🔄 復原(保留新增)</button>
+                        <button type="button" onclick="restoreDefaultImageCounts(false)" class="secondary-btn" style="width: auto; padding: 0 10px; font-size: 0.85rem; height: 38px; margin: 0;">🔄 復原(清空新增)</button>
+                    </div>
+
+                    <!-- 自行填寫與新增的隱藏區域 -->
+                    <div id="custom-image-count-wrapper" style="display: none; gap: 8px; margin-top: 5px; flex-direction: row; align-items: center;">
+                        <input type="text" id="image-count-custom" placeholder="請輸入欲新增的張數 (例如: 8張)..." style="flex: 1; height: 44px; margin: 0;">
+                        <button type="button" onclick="addNewImageCount()" class="secondary-btn" style="width: auto; padding: 0 12px; font-size: 0.9rem; height: 44px; margin: 0; white-space: nowrap;">➕ 新增選項</button>
+                    </div>
+                </div>
+<!-- 🌟 專屬圖框設定列 -->
+                <div class="setting-row" style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px; margin-bottom: 5px;">
+                    <label style="margin-bottom: 0;">🔹 署名與日期圖框 (自訂清單)</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label for="show-frame" style="margin-bottom: 0; font-size: 0.9rem; color: #555; cursor: pointer;">啟用圖框</label>
+                        <input type="checkbox" id="show-frame" checked>
+                    </div>
+                </div>
+                <div class="input-group" style="margin-bottom: 10px;">
+                    <div style="display: flex; gap: 8px; width: 100%;">
+                        <select id="frame-select" onchange="handleFrameSelectChange()" style="flex: 1;"></select>
+                        <button type="button" id="edit-frame-btn" onclick="toggleEditFrameMode()" class="secondary-btn" style="width: auto; padding: 0 12px; font-size: 0.9rem; height: 44px; margin: 0;">✏️ 編輯</button>
+                    </div>
+                    
+                    <!-- 編輯模式：刪除與復原 -->
+                    <div id="edit-frame-actions" style="display: none; gap: 8px; margin-top: 5px; flex-direction: row; flex-wrap: wrap; justify-content: flex-end;">
+                        <button type="button" onclick="deleteSelectedFrame()" class="secondary-btn" style="width: auto; padding: 0 10px; font-size: 0.85rem; height: 38px; margin: 0; color: #d32f2f; border-color: #d32f2f;">🗑️ 刪除選項</button>
+                        <button type="button" onclick="restoreDefaultFrames(true)" class="secondary-btn" style="width: auto; padding: 0 10px; font-size: 0.85rem; height: 38px; margin: 0;">🔄 復原(保留新增)</button>
+                        <button type="button" onclick="restoreDefaultFrames(false)" class="secondary-btn" style="width: auto; padding: 0 10px; font-size: 0.85rem; height: 38px; margin: 0;">🔄 復原(清空新增)</button>
+                    </div>
+
+                    <!-- 自行填寫與新增的隱藏區域 -->
+                    <div id="custom-frame-wrapper" style="display: none; gap: 8px; margin-top: 5px; flex-direction: row; align-items: center;">
+                        <input type="text" id="frame-custom" placeholder="請輸入欲新增的圖框樣式..." style="flex: 1; height: 44px; margin: 0;">
+                        <button type="button" onclick="addNewFrame()" class="secondary-btn" style="width: auto; padding: 0 12px; font-size: 0.9rem; height: 44px; margin: 0; white-space: nowrap;">➕ 新增選項</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="section-card" id="variables-section" style="display: none;">
+                <h3>🎨 巨量參數設定</h3>
+                <div id="variables-container"></div>
+            </div>
+
+            <div class="section-card" id="context-section" style="display: none;">
+                <h3>📝 情境與金句補充 (選填)</h3>
+                <div class="context-tabs">
+                    <button class="tab-btn active" onclick="switchTab('text')">指定文字</button>
+                    <button class="tab-btn" onclick="switchTab('url')">參考網址</button>
+                    <button class="tab-btn" onclick="switchTab('file')">檔案模擬</button>
+                </div>
+                <div id="tab-text" class="tab-content active">
+                    <textarea id="context-text" rows="4" placeholder="例如：請將問候語設定為『日落星起，願你卸下一身的疲憊。晚安。』..."></textarea>
+                </div>
+                <div id="tab-url" class="tab-content">
+                    <input type="text" id="context-url" placeholder="請貼上小紅書或網頁 URL...">
+                </div>
+                <div id="tab-file" class="tab-content">
+                    <input type="file" id="context-file" multiple style="width: 100%;">
+                    <p style="font-size: 0.8rem; color:#888; margin-top: 8px;">*系統將於提示詞中指示 AI 分析上傳檔案。</p>
+                </div>
+            </div>
+
+            <div class="section-card" id="output-section" style="display: none;">
+                <h3>✨ 最終生成高階提示詞</h3>
+                <div class="action-btns" style="margin-top: 0; margin-bottom: 20px;">
+                    <button class="primary-btn" onclick="generatePrompt()">🚀 組合生成高階提示詞</button>
+                </div>
+                <div class="output-area">
+                    <textarea id="final-prompt" placeholder="點擊上方按鈕生成提示詞..."></textarea>
+                </div>
+                <div class="action-btns">
+                    <button class="secondary-btn" onclick="copyPrompt()">📋 複製提示詞</button>
+                    <button class="secondary-btn" onclick="downloadTXT()">💾 下載為 TXT 檔</button>
+                </div>
+                <div class="date-info" id="current-date-display"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 邏輯保持原狀，完美支援手機端事件觸發 -->
+    <script>
+        const commonMediaOptions = [
+            "Midjourney v6 寫實大師風格 (Hyper-realistic photography, 8k, photorealistic)", "Niji 6 唯美二次元風格 (Anime style, beautiful composition, Niji 6)",
+            "東方水墨暈染禪意風格 (Zen ink wash painting)", "精工細作的中國工筆畫 (Meticulous traditional Chinese painting, Gongbi)",
+            "敦煌石窟壁畫藝術風 (Dunhuang murals style)", "日本傳統浮世繪木刻版畫 (Ukiyo-e woodblock print, Katsushika Hokusai style)",
+            "Sony A7R IV 單眼真實攝影 (8k, 寫實細節)", "徠卡相機復古人文攝影 (Leica M11 photography)", "Lomography LOMO 底片風格 (high contrast, vignette)",
+            "Kodak Portra 400 人像底片 (Kodak Portra 400 film)", "虛幻引擎5 (Unreal Engine 5) 3D 頂級渲染", "Octane Render 電影級光追渲染",
+            "Blender 3D 溫馨療癒渲染", "新海誠 (Makoto Shinkai) 動畫電影唯美風格", "宮崎駿吉卜力 (Studio Ghibli) 溫馨水彩動畫風",
+            "京都動畫 (京阿尼) 唯美光影風", "梵谷風格的厚塗油畫 (Impasto Oil Painting)", "歐洲古典主義油畫 (Classical European oil painting)",
+            "巴洛克戲劇性光影 (Baroque art, Caravaggio chiaroscuro)", "洛可可粉彩浪漫風 (Rococo pastel aesthetic)", "優雅的莫內印象派畫風 (Monet Impressionism)",
+            "點描派藝術 (Pointillism, George Seurat style)", "超现实主義畫風 (Surrealism, Salvador Dali inspired)", "立體派前衛藝術 (Cubism, Picasso inspired)",
+            "穆夏新藝術風格 (Alphonse Mucha, Art Nouveau)", "裝飾藝術風格 (Art Deco, Great Gatsby aesthetic)", "包浩斯極簡幾何風 (Bauhaus minimalist design)",
+            "普普藝術風 (Pop Art, Andy Warhol style)", "抽象表現主義 (Abstract Expressionism, Jackson Pollock)", "精緻的立體剪紙藝術 (Paper cut-out art)",
+            "東方傳統刺繡工藝視覺 (Traditional oriental embroidery)", "金繼工藝美學 (Kintsugi, golden repair aesthetic)", "羊毛氈溫馨藝術 (Needle felting art)",
+            "摺紙藝術視覺 (Origami, folding paper art)", "衍紙/捲紙藝術 (Quilling, paper filigree)", "微縮模型攝影 (Tilt-shift miniature photography)",
+            "生態瓶/玻璃球微景觀 (Terrarium miniature world)", "復古拍立得底片質感 (Polaroid vintage film)", "藍曬圖工藝質感 (Cyanotype blueprint aesthetic)",
+            "銀版攝影法復古質感 (Daguerreotype vintage photo)", "夢幻的水彩暈染與墨跡擴散 (Watercolor wash)", "賽博龐克霓虹科技風 (Cyberpunk neon aesthetic)",
+            "蒸汽龐克復古機械風 (Steampunk mechanical aesthetic)", "合成器迷幻風 (Synthwave, 80s retro neon)", "蒸汽波迷幻美學 (Vaporwave aesthetic, glitchy)",
+            "雙重曝光藝術 (Double exposure art)", "低多邊形幾何藝術 (Low Poly geometric art)", "立體體素藝術 (Voxel art, Teardown style)",
+            "等距視角 3D 模型渲染 (Isometric 3D rendering)", "彩色玻璃鑲嵌藝術 (Stained glass art)", "浮雕藝術 (Bas-relief sculpture art)",
+            "像素藝術 (16-bit Pixel Art)", "ASCII 字符代碼藝術 (ASCII art aesthetic)", "故障藝術 (Glitch art, chromatic aberration)",
+            "唐卡藝術 (Thangka, Tibetan Buddhist painting)", "水粉畫 (Gouache painting)", "木炭素描 (Charcoal sketch)", "粉彩畫 (Soft pastel drawing)", 
+            "雜誌封面大片風格 (Vogue magazine cover style)"
+        ];
+
+        const commonAngleOptions = [
+            "三分法則經典構圖 (Rule of thirds composition)", "視覺引導線構圖 (Leading lines composition)", "幾何引導線構圖 (Geometric leading lines)",
+            "中式園林框景構圖 (Traditional framing/Moon gate)", "窺探式前景框架構圖 (Framing with out-of-focus foreground)", "完美置中對稱構圖 (Symmetrical composition)",
+            "魏斯安德森置中對稱美學 (Wes Anderson symmetrical style)", "對角線構圖 (Diagonal composition, dynamic tension)", "帶來震撼感的超廣角全景 (Ultra-wide panorama, 14mm)",
+            "魚眼鏡頭超大廣角 (Fisheye lens, spherical distortion)", "上帝視角空拍機垂直俯視 (Drone top-down bird's-eye view)", "凸顯細節的極致微距特寫 (Extreme macro close-up)",
+            "極致微距探頭視角 (Probe lens macro, bug-eye perspective)", "電子顯微鏡微觀視角 (SEM electron microscope view)", "具有代入感的第一人稱視角 (First-person POV)",
+            "背影帶入感視角 (Over-the-shoulder shot)", "監視器高角度俯視 (High-angle security camera footage)", "行車紀錄器視角 (Dashboard camera perspective)",
+            "隨身攝影機視角 (Body-cam perspective)", "黃金比例螺旋構圖 (Golden ratio composition)", "充滿張力的低角度仰拍 (Low angle worm's-eye view)",
+            "懸崖垂直俯視視角 (Plunge angle, looking straight down)", "動態追蹤平移視角 (Tracking shot, motion blur)", "強烈景深對比 (Shallow depth of field, creamy bokeh)",
+            "動態傾斜的荷蘭角 (Dutch angle, cinematic tension)", "長焦鏡頭壓縮感視角 (Telephoto compression, 200mm lens)", "等距微觀視角 (Isometric perspective)",
+            "微觀世界的螞蟻視角 (Ant's-eye view)", "360度全景星球視角 (Tiny planet effect)", "萬花筒幾何反射視角 (Kaleidoscope perspective)",
+            "深空天文望遠鏡視角 (Deep space telescope view, JWST)", "熱成像儀視角 (Thermal imaging perspective)", "夜視鏡綠色螢光視角 (Night vision goggles view)",
+            "眼球/水滴中的反射倒影構圖 (Reflection in an eye/water droplet)", "從鑰匙孔/門縫窺探的視角 (Peeping through a keyhole)", "強烈背光下的剪影構圖 (Silhouette against a bright background)",
+            "強迫透視錯覺構圖 (Forced perspective optical illusion)", "分割畫面構圖 (Split-screen view)", "戲劇性頂光視角 (Dramatic top lighting)", "從水下往上看的水面折射視角 (Underwater looking up through surface)"
+        ];
+
+        const commonAspectRatioOptions = [
+            "10:13 (問候圖標準直式)", "16:9 (橫式)", "9:16 (滿版直式)", "1:1 (正方形)", "4:3 (標準)", "3:4 (直式)"
+        ];
+
+        const themeData = {
+            "theme": "全天候問候系統終極版",
+            "dimensions": [
+                {
+                    "name": "🌅 早安系列 (充滿朝氣)",
+                    "formulas": [
+                        {
+                            "name": "絕美晨間風景",
+                            "pattern": "身為專業早安圖設計師，在生成前請先搜尋並分析近期網路熱門早安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質早安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。背景是「{晨間壯麗地貌}」，並沐浴在「{晨間光影特效}」之中。請使用「{鏡頭視角}」捕捉畫面，整體散發出「{早晨情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需簡短優美且具巧思的【早安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                            "variables": [
+                                {"name": "圖片長寬比例", "options": commonAspectRatioOptions},
+                                {"name": "媒材與渲染技術", "options": commonMediaOptions},
+                                {"name": "晨間壯麗地貌", "options": [
+                                    "雲霧繚繞的黃山奇松與翻騰雲海 (禪意)", "小橋流水的江南水鄉晨景 (禪意)", "深山古剎與青石階梯的清晨 (禪意)", "佈滿青苔的枯山水庭院與石燈籠 (禪意)", 
+                                    "陽光灑落的京都嵐山竹林", "清晨無人的托斯卡尼葡萄園", "霧氣彌漫的蘇格蘭高地", "破曉時分的吳哥窟古蹟", "清晨寧靜的威尼斯水上運河", 
+                                    "壯麗的美國大峽谷日出", "阿爾卑斯山純白雪景日出", "清晨的塞倫蓋提非洲大草原", "一望無際的南法薰衣草花海", "熱氣球升空的土耳其卡帕多奇亞",
+                                    "雲海中露出曙光的高山巔峰", "清晨薄霧繚繞的靜謐松林與小溪", "晨曦將海水染成金色的無人沙灘", "佈滿露水與盛開野花的廣闊草原", 
+                                    "陽光剛灑落的歐式童話小鎮街道", "金黃色麥田中迎風搖曳的麥穗", "清晨寧靜如鏡的湖泊與山脈倒影", "充滿生機的熱帶雨林晨景", 
+                                    "早晨開滿櫻花的日式庭院", "冰雪初融的春季雪山", "陽光穿透樹冠的神秘精靈森林", "極地冰川與企鵝的清晨", "懸崖邊迎接第一道曙光的孤島燈塔", 
+                                    "微觀世界下的苔蘚森林與巨大露水", "未來火星基地的第一個日出", "漂浮在宇宙星雲中的奇幻島嶼", "深海珊瑚礁迎接透射的晨光",
+                                    "被朝霞染紅的天空之鏡 (烏尤尼鹽沼)", "充滿賽博龐克風格的未來城市高樓晨景", "漂浮在半空中的天空之城廢墟", "被巨大水晶簇擁的異星清晨",
+                                    "晨曦下的古老馬雅金字塔", "漓江上的竹筏與鸕鶿 (中國山水)", "清晨被露水打濕的巨大蜘蛛網特寫", "結著冰霜的歐式復古窗櫺", "清晨空蕩且安靜的歐洲復古火車站"
+                                ]},
+                                {"name": "晨間光影特效", "options": [
+                                    "透過竹林葉隙灑落的清冷晨光 (禪意)", "水墨畫般層次分明的漸層晨霧 (禪意)", "樹冠層灑落的神聖光束 (耶穌光/丁達爾效應)", 
+                                    "穿透大教堂彩色玻璃窗的神聖耶穌光", "粉色漸變到蔚藍的溫柔晨曦漸層色", "沙漠沙丘上刺眼奪目的太陽耀斑", "生物螢光在破曉時逐漸褪去的微光",
+                                    "晨露折射出的七彩微光", "清晨冷冽空氣中的薄霧光暈", "玻璃折射出的彩虹光斑", "清晨海面的碎金反光", "琥珀色晨霧壟罩的神秘光線",
+                                    "雨後天晴的晶瑩剔透折射光", "溫暖閃耀的黃金時刻逆光", "清澈通透的藍調時刻 (Blue hour) 轉日出", "樹葉間隙灑落的斑駁光影 (木漏日)", 
+                                    "充滿希望的鏡頭耀斑 (Lens flare)", "水面波光粼粼的反射光", "破曉時分天際線邊緣的紫色霞光", "充滿魔幻色彩的極光餘暉", 
+                                    "漫天飛舞的發光蒲公英種子特效", "陽光穿透薄冰層的冰彩折射", "雲隙間漏下的上帝之眼光芒"
+                                ]},
+                                {"name": "鏡頭視角", "options": commonAngleOptions},
+                                {"name": "早晨情感色調", "options": [
+                                    "清冷出塵的水墨黑白與石青色 (禪意)", "充滿禪意與生機的茶褐色與竹綠色 (禪意)", "治癒系奶油白與燕麥色", "清冷高級的莫蘭迪灰藍", 
+                                    "復古法式的勃艮第紅與暖金", "清新活力的多巴胺亮色系", "空靈的冰川藍與極光綠", "生機盎然的薄荷綠與鵝黃色系", 
+                                    "溫暖療癒的橘紅色與香檳金", "清新透亮的天空藍與純白色", "高級感滿分的低飽和莫蘭迪色", "充滿活力的鮮豔高對比色彩", 
+                                    "柔和夢幻的粉紫柔彩色系 (Pastel)", "充滿希望與奢華感的晨光金色系", "空靈純淨的琉璃藍與珍珠白", "復古溫潤的琥珀色與大地色", 
+                                    "極致極簡的留白與單一重點色", "帶有珍珠光澤的幻彩漸層色調", "賽博龐克的螢光晨曦色 (青與洋紅)", "油畫般的濃郁橘紅漸層"
+                                ]}
+                            ]
+                        },
+                        {
+                            "name": "晨間咖啡與靜物",
+                            "pattern": "身為專業早安圖設計師，在生成前請先搜尋並分析近期網路熱門早安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質早安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體為桌上的「{早晨靜物主體}」，旁邊點綴著「{晨間裝飾物件}」。背景是模糊的「{早晨窗外景色}」。請使用「{鏡頭視角}」讓畫面具備生活儀式感。\n\n【文字與排版設定】\n1. 圖片中需簡短優美且具巧思的【早安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                            "variables": [
+                                {"name": "圖片長寬比例", "options": commonAspectRatioOptions},
+                                {"name": "媒材與渲染技術", "options": commonMediaOptions},
+                                {"name": "早晨靜物主體", "options": [
+                                    "一碗清淡養生的白粥與幾碟精緻小菜 (禪意)", "一套正在泡著大紅袍的紫砂壺茶具 (禪意)", "一方古樸的端硯與一支沾墨的毛筆 (禪意)", 
+                                    "用日式竹製茶筅打出的濃郁抹茶 (禪意)", "港式飲茶的一籠蝦餃與普洱茶", "法式可麗露與瑪德蓮", "剛出爐的窯烤披薩", "一碗熱氣騰騰的越南河粉", 
+                                    "日式厚蛋燒與熱味噌湯", "一杯冒著熱氣且有精緻拉花的拿鐵", "一份剛出爐的可頌麵包與黑咖啡", "一本翻開的詩集與一隻鋼筆", 
+                                    "一個復古的木製鬧鐘與手沖咖啡壺", "一碗色彩繽紛的健康燕麥水果缽", "一杯冒著氣泡的檸檬氣泡水", "一份用木盤裝著的日式朝食", 
+                                    "一套精緻的英式早茶茶具", "一杯充滿熱帶風情的新鮮果昔", "一台正在打字的復古機械打字機", "一個裝滿新鮮蔬果的手工藤編籃", 
+                                    "一盤熱氣騰騰的法式薄餅 (Crepes)", "滿桌的凌亂手稿與鋼筆", "極簡風格的 MacBook 與手沖咖啡", "放著黑膠唱片的復古留聲機與濃縮咖啡", 
+                                    "一盤豐盛的英式早餐 (培根、煎蛋、茄汁豆)", "古典的大理石半身雕像", "一顆折射晨光的透明水晶球"
+                                ]},
+                                {"name": "晨間裝飾物件", "options": [
+                                    "幾片掉落的翠綠竹葉與一根線香 (禪意)", "一盆修剪精緻的中式迎客松盆景 (禪意)", "一塊透亮的玉珮與一條紅絲線 (禪意)", 
+                                    "古董黃銅懷錶與細膩的齒輪", "一疊復古的牛皮紙皮革筆記本", "一個漏著金沙的精緻玻璃沙漏", "一張展開的羊皮紙航海圖與黃銅指南針",
+                                    "幾朵沾著晨露的新鮮白玫瑰", "散落在桌面的咖啡豆與肉桂捲", "小巧可愛的多肉植物盆栽", "一條質感溫暖的粗針織毛毯", 
+                                    "灑落在桌面的晨間陽光與樹葉陰影", "一付金屬細框眼鏡", "旁邊放著正在播放音樂的復古黑膠唱片機", "幾片飄落的乾燥秋葉", 
+                                    "散落的彩色馬卡龍與緞帶", "一隻正在打哈欠的迷你幼貓", "幾顆晶瑩剔透的玻璃彈珠", "一台經典的徠卡底片相機與散落的底片", 
+                                    "剛剪下的新鮮鬱金香與園藝剪刀", "一個裝滿彩色毛線球的竹籃", "一把古典小提琴與散落的五線譜"
+                                ]},
+                                {"name": "早晨窗外景色", "options": [
+                                    "雲霧繚繞的深山寺廟屋簷 (禪意)", "一池剛綻放的清雅荷花與游魚 (禪意)", "繁華正在甦醒的都市晨景", "寧靜且鳥語花香的鄉村庭院", 
+                                    "陽光灑落的慵懶貓咪陽台", "遠處有海鷗飛過的海景窗台", "正在下著濛濛細雨的石板街道", "白雪覆蓋的森林木屋窗外", 
+                                    "熱氣球升空的卡帕多奇亞風景", "充滿未來感的賽博龐克城市天際線", "一望無際的蔚藍海洋與帆船", "滿山遍野的盛開櫻花林",
+                                    "高鐵車窗外飛逝的翠綠田野", "飛機舷窗外壯麗的雲海日出", "太空站舷窗外的美麗地球弧線", "被巨大的透明玻璃穹頂籠罩的海底城市",
+                                    "充滿蒸汽庞克風格的巨型齒輪鐘塔", "陽光灑落的古老歐洲大教堂廣場"
+                                ]},
+                                {"name": "鏡頭視角", "options": commonAngleOptions}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "☀️ 午安系列 (慵懶與提神)",
+                    "formulas": [
+                        {
+                            "name": "午後陽光與放鬆",
+                            "pattern": "身為專業午安圖設計師，在生成前請先搜尋並分析近期網路熱門午安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質午安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。背景是「{午後悠閒場景}」，畫面中充滿「{午後光影特徵}」。請使用「{鏡頭視角}」捕捉畫面，整體散發出「{午後情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【午安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                            "variables": [
+                                {"name": "圖片長寬比例", "options": commonAspectRatioOptions},
+                                {"name": "媒材與渲染技術", "options": commonMediaOptions},
+                                {"name": "午後悠閒場景", "options": [
+                                    "燃著線香、擺放古琴的古樸茶室 (禪意)", "陽光灑落的竹林石板路與涼亭 (禪意)", "夏日午後微風拂過的荷花池畔 (禪意)", 
+                                    "充滿陶土飛揚的安靜陶藝工作室", "種滿奇異蘭花的陽光溫室", "綁在兩棵棕櫚樹之間的私人沙灘吊床", "地中海陽光下的豪華遊艇甲板",
+                                    "有著精緻馬賽克噴泉的摩洛哥庭院", "光束穿透灰塵的古董雜貨店", "滿是睡貓的慵懶貓咪咖啡廳", "賽博龐克城市頂樓的秘密空中花園",
+                                    "夏日午後有蟬鳴的日式走廊", "午後陽光慵懶的塞納河畔", "冷氣房內舒適的電競房一角", "午後微風中的麥田稻草人", "安靜無人的美術館畫廊", 
+                                    "充滿陽光的街角露天咖啡座", "一隻橘貓正在打盹的木製窗台", "樹影婆娑的公園長椅", "擺滿書籍的靜謐圖書館靠窗座位", 
+                                    "海風微拂的度假村海灘躺椅", "微風吹過風鈴的日式木造走廊", "金黃色的向日葵花海", "波光粼粼的寧靜下午湖畔", 
+                                    "繁華都市的高樓無邊際泳池", "滿地落葉的秋季紅木森林", "正在播放老電影的汽車電影院", "掛滿繽紛熱氣球的土耳其露台", 
+                                    "充滿波希米亞風情的露營車旁", "可以俯瞰整個城市的熱氣球吊籃內", "被巨大蘑菇包圍的童話森林午後"
+                                ]},
+                                {"name": "午後光影特徵", "options": [
+                                    "穿透中式雕花紙窗的柔和漫射光 (禪意)", "透過竹葉灑落的細碎斑駁光影 (禪意)", "強烈且明亮的下午兩點陽光", 
+                                    "斜射進屋內的溫暖午後陽光", "透過百葉窗灑落的條紋光影", "樹葉間隙產生的圓形光斑 (散景)", "帶有慵懶感的暖黃色濾鏡光", 
+                                    "午後雷陣雨後的彩虹與水滴折射", "慵懶的琥珀色夕陽前奏", "波光粼粼的湖面高光反射", "色彩斑斕的玻璃窗折射光", 
+                                    "微塵在光束中飛舞的靜謐光影", "沙漠中炙熱的熱浪扭曲光影", "熱帶雨林中悶熱潮濕的漫射光", "巨大的日暈現象出現在天際",
+                                    "水族箱水波折射到牆上的動態光影", "百葉窗扇葉緩慢旋轉切碎的光影"
+                                ]},
+                                {"name": "鏡頭視角", "options": commonAngleOptions},
+                                {"name": "午後情感色調", "options": [
+                                    "青瓷般的溫潤色澤與水墨留白 (禪意)", "古木茶香般的深沉棕褐色調 (禪意)", "充滿活力的亮黃與橙色系", "放鬆身心的焦糖拿鐵色調", 
+                                    "清新解暑的薄荷綠與冰藍色", "復古懷舊的泛黃底片色調", "高雅靜謐的茶綠與木質調", "慵懶浪漫的法式玫瑰金色系", 
+                                    "復古港風電影的濃郁對比色調", "南法莊園的明媚鮮豔色彩", "賽博龐克白天的金屬冷色調", "夢幻童話般的馬卡龍漸層色",
+                                    "充滿夏日風情的西瓜紅與檸檬黃", "冷酷極簡的黑白灰與局部跳色", "彷彿被陽光曬退色的莫蘭迪低飽和色", "熱情狂野的吉普賽鮮豔拼色"
+                                ]}
+                            ]
+                        },
+                        {
+                            "name": "下午茶與精緻甜點",
+                            "pattern": "身為專業午安圖設計師，在生成前請先搜尋並分析近期網路熱門午安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質午安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是令人垂涎的「{下午茶甜點}」，搭配飲品「{午後飲品}」。周圍裝飾著「{精緻點綴物}」。請使用「{鏡頭視角}」讓畫面充滿食慾與幸福感。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【午安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                            "variables": [
+                                {"name": "圖片長寬比例", "options": commonAspectRatioOptions},
+                                {"name": "媒材與渲染技術", "options": commonMediaOptions},
+                                {"name": "下午茶甜點", "options": [
+                                    "精緻的綠豆糕、桂花糕與荷花酥 (禪意)", "熱氣騰騰的黑糖蕨餅與白玉湯圓 (禪意)", "竹筒盛裝的抹茶提拉米蘇 (禪意)", 
+                                    "堆疊如塔的法式焦糖泡芙塔 (Croquembouche)", "帶有四季雕花的精緻日式和菓子", "切開流出櫻桃酒醬的黑森林蛋糕", 
+                                    "點綴著新鮮無花果的閃亮蜂巢蜜", "插著仙女棒的超豪華冰淇淋聖代", "經典的英式維多利亞海綿蛋糕", "撒滿開心果碎的中東果仁蜜餅 (Baklava)",
+                                    "灑滿糖粉的法式草莓千層派", "剛烤好外酥內軟的英式司康佐果醬", "一顆精緻如藝術品的鏡面慕斯蛋糕", "多層次的英式三層下午茶點心架", 
+                                    "色彩繽紛的法式馬卡龍拼盤", "淋著蜂蜜與奶油的厚鬆餅 (Pancake)", "一塊濃郁的巴斯克乳酪蛋糕", "日式精緻和菓子與櫻餅", 
+                                    "色彩繽紛的法式新鮮水果塔", "現烤的外酥內軟沾巧克力吉拿棒", "爆漿的熱壓熔岩巧克力蛋糕", "一碗灑滿堅果的義式冰淇淋 (Gelato)",
+                                    "層次分明的抹茶紅豆千層蛋糕", "撒滿金箔的頂級松露巧克力", "剛出爐散發焦糖香氣的葡式蛋撻", "用精緻玻璃杯盛裝的提拉米蘇",
+                                    "熱帶風情的芒果糯米飯與椰奶", "一整顆雕刻精美的哈密瓜水果盅", "分子料理：液態氮急速冷凍的玫瑰覆盆子冰沙"
+                                ]},
+                                {"name": "午後飲品", "options": [
+                                    "一壺剛泡好的頂級高山烏龍茶 (禪意)", "漂浮著花瓣的洛神花茶與青花瓷杯 (禪意)", "用竹製茶筅手刷的濃郁抹茶 (禪意)", 
+                                    "冰塊上漂浮濃縮咖啡的焦糖達古納咖啡 (Dalgona)", "在玻璃壺中緩緩綻放的工藝花茶", "淋上熱濃縮咖啡的香草阿芙佳朵 (Affogato)",
+                                    "色彩鮮豔分層的漸層果昔碗", "清爽點綴黃瓜與薄荷的琴蕾特調 (Gimlet)", "用陶杯盛裝的印度香料奶茶 (Masala Chai)",
+                                    "一杯冰涼透心的漸層氣泡飲", "一壺冒著煙的伯爵紅茶", "一杯有著天鵝拉花的熱卡布奇諾", "冰塊碰撞的檸檬冰茶", 
+                                    "一杯撒著可可粉的提拉米蘇拿鐵", "冰塊碰撞的梅酒氣泡飲", "香濃的熱巧克力佐棉花糖", "一杯有著漸層美麗色彩的蝶豆花冰茶", 
+                                    "一杯裝滿新鮮薄荷的莫西多 (Mojito) 無酒精特調", "一杯拉花是可愛貓咪的熱拿鐵", "一杯裝滿新鮮水果片的西班牙水果酒 (Sangria)", 
+                                    "冒著乾冰白煙的魔法特調飲品", "一杯放著鮮奶油與櫻桃的復古冰淇淋蘇打"
+                                ]},
+                                {"name": "精緻點綴物", "options": [
+                                    "一把半開的精緻古風水墨紙扇 (禪意)", "一只汝窯茶寵與幾顆圍棋子 (禪意)", "燙金邊緣的高級骨瓷茶具", 
+                                    "旁邊放著一本翻開的時尚雜誌", "優雅的銀製小刀叉與蕾絲餐墊", "幾朵散落的乾燥玫瑰花瓣", "一束剛買回來的鮮花", 
+                                    "一罐半開的手工果醬與木湯匙", "一台復古的徠卡旁軸相機", "一串晶瑩剔透水晶風鈴", "一本燙金封面的古典小說", 
+                                    "幾副精美的手工塔羅牌", "散落的彩色玻璃珠與金屬懷錶", "一隻精緻的陶瓷小鳥擺飾", "一個裝滿肉桂棒與八角的玻璃罐",
+                                    "一支沾滿墨水的華麗羽毛筆", "幾張拍立得相片隨意散落", "一個滴著精油的復古黃銅擴香儀", "幾顆散落的頂級松露與金箔"
+                                ]},
+                                {"name": "鏡頭視角", "options": commonAngleOptions}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "🌙 晚安系列 (沉靜與療癒)",
+                    "formulas": [
+                        {
+                            "name": "寧靜夜景與星空",
+                            "pattern": "身為專業晚安圖設計師，在生成前請先搜尋並分析近期網路熱門晚安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質晚安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。背景是深邃的「{迷人夜景地貌}」，天空呈現「{夜空與天體特徵}」。請使用「{鏡頭視角}捕捉這份寧靜，整體散發出「{夜晚情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【晚安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                            "variables": [
+                                {"name": "圖片長寬比例", "options": commonAspectRatioOptions},
+                                {"name": "媒材與渲染技術", "options": commonMediaOptions},
+                                {"name": "迷人夜景地貌", "options": [
+                                    "月光如水傾瀉的靜謐寒山古寺 (禪意)", "高掛紅燈籠的烏鎮水鄉夜景與烏篷船 (禪意)", "長城烽火台上的浩瀚星空 (禪意)", 
+                                    "星空下孤寂的古代天文台遺跡", "發出幽藍螢光的生物螢光海灣", "狂風暴雨夜裡孤獨矗立的燈塔", "平靜河面上放滿水燈的傳統祭典",
+                                    "長滿巨大發光水晶的異星球夜景", "傾盆大雨中的賽博龐克拉麵攤", "煙霧瀰漫且燈光昏暗的復古爵士酒吧", "東方快車上的奢華木質車廂夜景",
+                                    "大雪紛飛中的合掌村點燈", "繁星下的馬爾地夫水上屋", "藍眼淚爆發的馬祖海岸", "深海中發光的神秘水母群", 
+                                    "賽博龐克九龍城寨風格霓虹街區", "被魔法螢光菇照亮的奇幻洞穴", "燈火輝煌的維多利亞港夜景", "燈火闌珊的都市繁華夜景", 
+                                    "雪地裡透出溫暖黃光的森林小木屋", "海浪輕輕拍打的靜謐月光沙灘", "高山上距離星星最近的露營帳篷", "水面倒映著月亮的寧靜湖泊", 
+                                    "掛滿紅燈籠的古色古香老街夜景", "螢火蟲飛舞的夏夜森林", "霓虹燈閃爍的賽博龐克雨夜街道", "充滿奇幻色彩的發光植物發光森林", 
+                                    "月光下的日式枯山水庭院", "倒映著極光的冰島黑沙灘", "荒野中的星空露營地與營火", "未來城市的霓虹天際線與飛行車", 
+                                    "漂浮在宇宙星辰中的奇幻太空站", "點亮了千萬盞天燈的泰國水燈節夜景", "在夜空下發光的巨型生命之樹", "被螢光珊瑚覆蓋的海底沉船"
+                                ]},
+                                {"name": "夜空與天體特徵", "options": [
+                                    "如絲綢般飄拂的淡雅雲彩與孤月 (禪意)", "帶著巨大吸積盤的深邃黑洞", "拖著長長發光尾巴的彗星劃過", "從單一輻射點爆發的壯麗流星雨",
+                                    "色彩斑斕的螺旋狀行星狀星雲", "天空中同時出現數個月亮的異星奇景", "星象圖與星座連線以金線浮現於夜空", "若隱若現的黃道光與星際塵埃",
+                                    "九大行星連線的天文奇觀", "流星雨如瀑布般傾瀉", "兩個月亮交輝的異星夜空", "巨大的玫瑰星雲佔據夜空", "帶有神話色彩的星象圖騰浮現", 
+                                    "巨大且清晰的超級金黃滿月", "橫跨天際的璀璨銀河 (Milky Way)", "絢麗舞 कटोच的極光 (Aurora Borealis)", "流星劃過天際的瞬間", 
+                                    "被發光雲彩半掩的溫柔彎月", "深邃無垠的繁星點點", "夢幻的粉紫色星雲深空", "清晰可見的獵戶座腰帶與星座連線", 
+                                    "帶著神祕色彩的巨大紅色血月", "多個月亮同時出現的奇幻異星夜空", "黑洞吸積盤在遠處發出耀眼光芒", "巨大的土星環橫跨整個夜空", 
+                                    "漫天飛舞的發光天燈掩蓋了星空", "宇宙大爆炸邊緣的創世之光"
+                                ]},
+                                {"name": "鏡頭視角", "options": commonAngleOptions},
+                                {"name": "夜晚情感色調", "options": [
+                                    "水墨暈染的幽藍與月白留白 (禪意)", "寧靜祥和的琉璃青與古銅金 (禪意)", "深邃靜謐的藏青與午夜藍", "溫暖療癒的營火橘與暗黃色", 
+                                    "神秘魔幻的紫羅蘭與星空紫", "賽博龐克的高對比霓虹紫紅與青色", "溫柔浪漫的月光銀白色", "冷調高級的黑灰白與局部點綴光", 
+                                    "深海般的幽邃藍與螢光生物綠", "充滿科技感的冷冽幽藍與數據綠", "奢華低調的黑金對比色系", "夢幻的粉藍與紫紅色霓虹漸層",
+                                    "彷彿黑白電影般的純粹黑白與銀色", "帶有恐怖美學的腥紅色與深黑色", "童話書中的午夜寶石藍與碎鑽金", "琥珀與黑曜石般的高級暗黑系"
+                                ]}
+                            ]
+                        },
+                        {
+                            "name": "室內療癒助眠",
+                            "pattern": "身為專業晚安圖設計師，在生成前請先搜尋並分析近期網路熱門晚安圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質晚安圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是溫馨室內的一角：「{睡前溫馨場景}」，光源來自「{夜晚溫暖光源}」。請使用「{鏡頭視角}」，營造出一種讓人想立刻鑽進被窩的「{助眠氛圍}」。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【晚安】問候語與祝福詞。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                            "variables": [
+                                {"name": "圖片長寬比例", "options": commonAspectRatioOptions},
+                                {"name": "媒材與渲染技術", "options": commonMediaOptions},
+                                {"name": "睡前溫馨場景", "options": [
+                                    "鋪著榻榻米的和室、一盞紙燈籠與古卷 (禪意)", "點著盤香的靜心蒲團與一壺熱茶 (禪意)", "點著精油擴香儀的瑜伽墊旁", 
+                                    "雨點拍打玻璃的豪華飄窗軟墊區", "掛著半透明蕾絲帷幔的奢華四柱大床", "充滿科技感與藍色氛圍燈的休眠艙", "樓梯下方被改造成的隱密閱讀小角落",
+                                    "沙漠綠洲中仰望星空的露宿睡袋", "一隻毛茸茸的大黃狗在壁爐地毯上熟睡", "滿牆書架前的單人懶骨頭沙發", "佈滿星空投影的小帳篷", 
+                                    "日式被爐與放著橘子的桌面", "鋪著厚實蓬鬆棉被的舒適雙人床", "放著一杯熱牛奶與安眠書的床頭櫃", "一隻捲縮在羊毛毯上熟睡的小貓", 
+                                    "點著香氛蠟燭的泡澡浴缸邊緣", "靠窗的沙發上放著吉他與抱枕", "火光搖曳的壁爐與旁邊的搖椅", "亮著小夜燈的童趣兒童房", 
+                                    "掛著捕夢網的波西米亞風溫馨臥室", "全景天窗下可以看見星空的雙人床", "堆滿絨毛玩具的溫馨地毯角落", "一間充滿植物與綠意的溫室玻璃臥室", 
+                                    "復古火車臥鋪車廂內的溫暖床鋪", "充滿原木香氣的桑拿房一角", "太空艙內充滿科技感的休眠艙", "被無數螢火蟲包圍的樹屋吊床",
+                                    "漂浮在無重力太空艙內的睡袋"
+                                ]},
+                                {"name": "夜晚溫暖光源", "options": [
+                                    "中式木雕宮燈透出的溫潤黃光 (禪意)", "青銅香爐中忽明忽滅的暗紅炭火 (禪意)", "散發微光的暖黃色香氛蠟燭", 
+                                    "纏繞在床頭的溫馨星星造型燈串", "復古愛迪生燈泡的檯燈微光", "壁爐裡劈啪作響的溫暖火光", "窗外灑進來的清冷月光與室內暖光對比", 
+                                    "微弱的螢幕光與鍵盤背光", "投影在牆面上的星空投影燈", "熔岩燈 (Lava lamp) 緩慢流動的奇幻光芒", "水族箱透出的柔和療癒藍光", 
+                                    "床底感應式LED燈帶的溫和光暈", "捕夢網上微微發光的夜明珠", "老式煤油燈跳躍的溫暖火苗", "從門縫透進來的溫暖橘光",
+                                    "螢火蟲裝在玻璃罐裡散發的螢光", "全息投影設備散發的微弱科技藍光"
+                                ]},
+                                {"name": "鏡頭視角", "options": commonAngleOptions},
+                                {"name": "助眠氛圍", "options": [
+                                    "萬物歸寂的空靈感與內心平靜 (禪意)", "極致的安全感與被包裹的溫暖", "絕對的寧靜與時間靜止感", "童話般的溫馨與無憂無慮", 
+                                    "徹底放鬆身心的慵懶感", "充滿禪意與內心平靜的空靈感", "如置身深海般與世隔絕的寧靜", "彷彿回到童年母親懷抱的安心感", 
+                                    "微醺後的放鬆與靈魂飄浮感", "進入深度冥想的失重感", "彷彿被雲朵輕托起的輕盈感", "充滿神聖與被祝福的安詳感",
+                                    "如同在母體子宮內的絕對安全感", "疲憊一掃而空的治癒與釋放感"
+                                ]}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "🎂 生日祝福系列 (專屬慶生)",
+                    "formulas": [
+                        {
+                            "name": "奢華派對與蛋糕",
+                            "pattern": "身為專業生日賀卡設計師，在生成前請先搜尋並分析近期網路熱門生日圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質生日祝賀圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是令人驚豔的「{生日蛋糕款式}」，周圍裝飾著「{派 ভগ對裝飾物件}」。背景是「{生日派對場景}」。請使用「{鏡頭視角}」捕捉這歡樂瞬間，整體散發出「{生日情感色調}」的視覺氛圍。\n\n【文字與排版設定】\n1. 圖片中需包含簡短優美且具巧思的【生日快樂】專屬祝福語。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                            "variables": [
+                                {"name": "圖片長寬比例", "options": commonAspectRatioOptions},
+                                {"name": "媒材與渲染技術", "options": commonMediaOptions},
+                                {"name": "生日蛋糕款式", "options": [
+                                    "奢華三層翻糖蛋糕 (點綴金箔與珍珠)", "可愛馬卡龍裝飾的草莓鮮奶油蛋糕", "傳統中式巨型壽桃塔 (長輩祝壽)", 
+                                    "簡約高雅的北歐風字母蛋糕", "插著閃爍仙女棒的巧克力熔岩蛋糕", "裝飾著鮮豔玫瑰花的雙層藝術蛋糕", 
+                                    "夢幻獨角獸造型的彩虹蛋糕", "復古華麗的裱花奶油蛋糕", "精緻的法式水果千層蛋糕", "賽博龐克風格的發光電子立體蛋糕"
+                                ]},
+                                {"name": "派對裝飾物件", "options": [
+                                    "漂浮的香檳色數字氣球與星星氣球", "漫天飛舞的彩色紙屑 (Confetti) 與彩帶", "燃燒中的精緻生日蠟燭", 
+                                    "堆積如山的精美包裝禮物盒", "華麗閃爍的水晶吊燈", "中式壽字掛軸與大紅燈籠 (長輩祝壽)", 
+                                    "散落的玫瑰花瓣與倒滿香檳的高腳杯", "戴著派對帽的可愛絨毛玩具", "發光的 LED 生日快樂造型燈牌"
+                                ]},
+                                {"name": "生日派對場景", "options": [
+                                    "豪華飯店頂樓的露天星空泳池派對", "溫馨佈置且充滿笑聲的家庭客廳", "浪漫的戶外草地野餐派對", 
+                                    "閃爍霓虹燈的奢華包廂 KTV", "佈滿鮮花的高級米其林法式餐廳", "充滿禪意的中式古典庭院 (長輩祝壽)", 
+                                    "遊艇甲板上的黃昏夕陽派對", "被發光蘑菇與精靈環繞的童話森林", "未來賽博都市的頂樓空中花園"
+                                ]},
+                                {"name": "鏡頭視角", "options": commonAngleOptions},
+                                {"name": "生日情感色調", "options": [
+                                    "奢華高貴的黑金與暗夜配色", "浪漫唯美的玫瑰金與粉白色系", "充滿活力的馬卡龍粉彩派對色調", 
+                                    "喜氣洋洋的東方正紅與鎏金 (長輩祝壽)", "清新自然的莫蘭迪綠與溫潤木質色", "溫暖熱情的橘紅色與香檳金", 
+                                    "賽博龐克的迷幻霓虹與螢光色系", "高雅尊貴的珍珠白與琉璃藍"
+                                ]}
+                            ]
+                        },
+                        {
+                            "name": "溫馨靜物與禮物",
+                            "pattern": "身為專業生日賀卡設計師，在生成前請先搜尋並分析近期網路熱門生日圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質生日祝賀圖。\n\n【影像設定】\n畫面採用「{媒材與渲染技術}」。主體是「{溫馨生日主角}」，搭配著精心準備的「{專屬生日禮物}」。背景是「{溫馨慶生場景}」。請使用「{鏡頭視角}」呈現精緻細節，整體營造出「{溫暖祝福氛圍}」的視覺感受。\n\n【文字與排版設定】\n1. 圖片中需包含溫馨且真誠的【生日快樂】祝福語。\n2. 圖片右下方必須顯示創意字體與顏色搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                            "variables": [
+                                {"name": "圖片長寬比例", "options": commonAspectRatioOptions},
+                                {"name": "媒材與渲染技術", "options": commonMediaOptions},
+                                {"name": "溫馨生日主角", "options": [
+                                    "一張寫滿祝福的精緻立體賀卡與一枝燙金鋼筆", "一個插著單根點燃蠟燭的精緻小杯子蛋糕", "一碗熱氣騰騰的傳統豬腳麵線與紅蛋 (台灣傳統)", 
+                                    "一隻戴著迷你生日帽的熟睡橘貓", "一隻咬著禮物緞帶的黃金獵犬", "一個精緻的復古音樂盒正在旋轉", 
+                                    "一杯有著『Happy Birthday』拉花的熱拿鐵", "一盤擺盤精緻的法式馬卡龍下午茶"
+                                ]},
+                                {"name": "專屬生日禮物", "options": [
+                                    "綁著白色絲帶的經典 Tiffany 藍小禮盒", "一束剛採摘且沾著露水的盛開向日葵", "一束包裝精美的紅玫瑰花束", 
+                                    "一本質感溫潤的客製化皮革手帳本", "一套精美的汝窯茶具組 (長輩適用)", "一條精緻的閃亮銀色項鍊", 
+                                    "一瓶用緞帶裝飾的高級紅酒", "一個充滿神秘感的巨大牛皮紙包裹"
+                                ]},
+                                {"name": "溫馨慶生場景", "options": [
+                                    "陽光灑落的木質調書桌前", "點著溫暖香氛蠟燭的床頭櫃旁", "充滿咖啡香氣的街角安靜咖啡廳", 
+                                    "能看見美麗夜景的景觀窗台", "佈置著小巧星星燈串的溫馨角落", "下著濛濛細雨但室內溫暖的窗邊", 
+                                    "擺滿綠色植栽的陽光玻璃溫室"
+                                ]},
+                                {"name": "鏡頭視角", "options": commonAngleOptions},
+                                {"name": "溫暖祝福氛圍", "options": [
+                                    "溫暖治癒且極具生活儀式感", "充滿童趣與無憂無慮的快樂", "絕對的寧靜與深深的內心祝福", 
+                                    "優雅高級且帶有成熟魅力", "懷舊復古且充滿時光沉澱的溫情", "如同老友般親切且充滿陽光"
+                                ]}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "🎊 節慶與特殊日子",
+                    "formulas": [
+                        {
+                            "name": "通用節日慶典",
+                            "pattern": "身為頂尖 AI 視覺藝術家，在生成前請先搜尋並分析近期網路熱門節慶圖的排版與創意。分析完畢後，請為我生成一張長寬比「{圖片長寬比例}」的高畫質問候圖。\n\n【影像設定】\n今天是特別的節日，請使用「{媒材與渲染技術}」。畫面以「{節慶核心元素}」為主，背景點綴「{節日慶祝特效}」。請使用「{鏡頭視角}」，整體色彩需表現出「{節日氛圍色調}」。\n\n【文字與排版設定】\n1. 圖片中需包含符合該節日的專屬問候語 。\n2. 圖片右下方必須顯示創意字體與創意圖框搭配的署名：「琦閔~祝福您」。\n3. 署名正下方清楚顯示今日日期：{今日日期}。",
+                            "variables": [
+                                {"name": "圖片長寬比例", "options": commonAspectRatioOptions},
+                                {"name": "媒材與渲染技術", "options": commonMediaOptions},
+                                {"name": "節慶核心元素", "options": [
+                                    "春節：華麗的紅燈籠、春聯、舞龍舞獅與金元寶", "元宵：放飛滿天的祈福天燈與煮沸的湯圓 (禪意)", "清明：煙雨濛濛的翠綠茶園與油紙傘 (禪意)",
+                                    "巴西嘉年華：插滿羽毛的華麗舞衣與漫天金蔥", "威尼斯面具節：精緻詭譎的華麗面具與貢多拉船", "日本七夕祭：掛滿短冊祈願的竹枝與浴衣",
+                                    "印度侯麗節 (Holi)：漫天飛舞的彩色粉末與笑臉", "德國慕尼黑啤酒節：巨大的啤酒杯與巴伐利亞木屋", "墨西哥亡靈節：華麗的萬壽菊花海與彩繪骷髏",
+                                    "紐約時代廣場跨年：漫天紙屑與巨大的水晶球落下", "中式傳統婚禮：鳳冠霞帔、紅燭與大紅雙喜", "端午：乘風破浪的龍舟、艾草與精緻香包 (禪意)", 
+                                    "七夕：鵲橋相會、漫天星辰與紅線燈籠 (禪意)", "中元：水面漂浮的蓮花燈與莊嚴的寺廟", "中秋：金黃色的滿月、玉兔搗藥與桂花樹 (禪意)", 
+                                    "重陽：登高望遠的秋菊與茱萸 (禪意)", "冬至：熱氣騰騰的湯圓與窗外飄雪", "聖誕節：佈佈滿燈飾與禮物盒的巨大聖誕樹", 
+                                    "跨年：101大樓地標與璀璨的煙火", "情人節：紅玫瑰花束、愛心巧克力與香檳", "萬聖節：發光的傑克南瓜燈、蝙蝠與幽靈裝飾", 
+                                    "母親節：盛開的康乃馨、珍珠與溫馨卡片", "父親節：精緻的領帶、威士忌杯與皮革製品", "感恩節：豐盛的烤火雞、玉米角與秋收南瓜", 
+                                    "復活節：彩繪復活蛋與躲在草叢的可愛兔子", "畢業季：拋向天空的學士帽、向日葵與白鴿", "生日：插著蠟燭的奢華三層蛋糕與派對帽", 
+                                    "泰國潑水節：歡樂的水花四濺與大象", "印度排燈節 (Diwali)：無數精美的油燈與色彩", "日本櫻花祭：穿著和服在櫻花樹下賞花野餐"
+                                ]},
+                                {"name": "節日慶祝特效", "options": [
+                                    "滿天飛舞的金箔與紅紙碎花 (東方節慶)", "水墨暈染開的喜氣紅梅花瓣 (禪意)", "夜空中綻放的絢麗煙花與火樹銀花", 
+                                    "緩緩飘落的純淨白雪與冰晶", "空氣中漂浮的浪漫粉色愛心光暈", "閃爍的節慶LED燈串散景", "溫暖且充滿希望的神聖光輝", 
+                                    "五彩繽紛的派對拉炮與紙卷", "魔法般的閃亮金粉與精靈光芒", "香檳開瓶瞬間噴灑的氣泡與光影", "雷射光束與動感演唱會舞台燈光",
+                                    "漫天飛舞的彩色紙屑 (Confetti)", "巨大的全息投影節慶圖騰在空中閃耀", "音波震動帶來的視覺水波紋特效"
+                                ]},
+                                {"name": "鏡頭視角", "options": commonAngleOptions},
+                                {"name": "節日氛圍色調", "options": [
+                                    "喜氣洋洋的東方正紅與奢華鎏金", "溫馨浪漫的聖誕紅與冷杉綠", "神祕奇幻的萬聖紫與南瓜橘", "純潔唯美的冰雪白與天空藍", 
+                                    "浪漫至極的玫瑰粉與香檳色", "溫暖團圓的琥珀黃與大地色", "充滿未來感的賽博霓虹狂歡色系", "高雅尊貴的皇家藍與白銀色", 
+                                    "童話般的馬卡龍粉彩派登色調", "古色古香的青花瓷藍與朱砂紅 (禪意)", "熱情奔放的森巴嘉年華對比色", "神聖莊嚴的純白與金色光輝"
+                                ]}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "🎬 動態影音腳本 (Sora/Runway)",
+                    "formulas": [
+                        {
+                            "name": "動態問候短影音",
+                            "pattern": "身為專業的 AI 動態影像導演，請為我生成一段長寬比「{圖片長寬比例}」，約 5-10 秒的高畫質問候短影音提示詞。\n\n【動態影像設定】\n畫面風格採用「{動態視覺風格}」。主體呈現「{核心動態事件}」，請採用「{電影級運鏡手法}」來引導觀眾視線。整體影片的步調保持「{影片節奏與氛圍}」。\n\n【文字與後製指示 (若工具支援)】\n影片後半段，畫面中央需平滑淡入優美的英文字體 (早/午/晚) 問候語。影片右下角常駐浮水印：「琦閔」以及今日日期：{今日日期}。",
+                            "variables": [
+                                {"name": "圖片長寬比例", "options": commonAspectRatioOptions},
+                                {"name": "動態視覺風格", "options": [
+                                    "水墨畫暈染流動特效 (Ink wash animation - 禪意)", "青綠山水畫的3D動態演繹 (3D Shan shui - 禪意)", "8K 真實電影攝影 (Cinematic realism)", 
+                                    "萬花筒式的幾何碎形鏡像複製特效 (Kaleidoscope fractal)", "賽博龐克立體全息投影動態 (3D Hologram projection)", "動態排版字體飛舞特效 (Kinetic typography)",
+                                    "局部動態微圖影風格 (Cinemagraph, only one element moving)", "熱像儀色彩干擾與故障特效 (Thermal vision glitch)", "復古 8-bit 街機遊戲像素動態 (Retro 8-bit intro)",
+                                    "左右眼紅藍立體 3D 視覺特效 (Stereoscopic 3D effect)", "吉卜力手繪動畫風 (Ghibli animation)", "3D 虛幻引擎高光渲染 (UE5 CGI)", 
+                                    "微縮模型移軸動態 (Tilt-shift time-lapse)", "逐格黏土動畫 (Claymation stop-motion)", "2D 賽璐璐復古動畫 (Retro cel animation)", 
+                                    "油畫筆觸流動特效 (Oil painting flow)", "賽博龐克霓虹閃爍動態 (Cyberpunk neon motion)", "微觀粒子特效流動 (Particle simulation)", 
+                                    "水彩畫顏料在水中擴散的動態 (Watercolor bleed)", "萬花筒般的幾何碎形無限放大 (Fractal zoom)", "老舊 VHS 錄影帶雜訊風格 (VHS glitch)", 
+                                    "萬物皆為毛線編織的動態世界 (Yarn world)"
+                                ]},
+                                {"name": "核心動態事件", "options": [
+                                    "早：熱茶杯口緩緩飄升的白煙與落下的竹葉 (禪意)", "晚：一滴墨水在宣紙上暈開化作夜空 (禪意)", "早：熱咖啡杯口緩緩飄升的白煙與灑落的光束", 
+                                    "早：朝陽從雲海中升起，光線逐漸照亮大地", "午：微風吹過窗簾，陽光在書本上緩慢移動", "午：花瓣在微風中輕輕搖曳，蝴蝶飛過", 
+                                    "晚：璀璨的煙火在夜空中接連綻放", "晚：螢火蟲在森林中閃爍飛舞，溪水潺潺流動", "晚：壁爐中的木柴燃燒，火光溫暖地跳動", 
+                                    "早：含苞待放的玫瑰在縮時攝影下緩緩綻放", "午：一杯加了冰塊的氣泡水，氣泡不斷向上湧出", "晚：極光在佈滿繁星的夜空中如絲帶般舞動", 
+                                    "午：一隻熟睡的貓咪呼吸時肚子微微起伏", "晚：城市街道的車軌光影在縮時攝影下流動", "早：一滴晶瑩的露水從綠葉邊緣滑落滴入平靜水面",
+                                    "午：一杯黑咖啡倒入牛奶後產生美麗的渲染大理石紋路", "晚：無數發光的水母在深海中緩慢向上游動", "早：破繭而出的蝴蝶第一次拍打翅膀",
+                                    "午：秋風掃落葉，金黃色的葉片在空中旋轉飛舞", "晚：古老時鐘的齒輪精確地咬合轉動", "早：冰川上的冰柱在陽光下緩慢融化滴水",
+                                    "午：墨水滴入清水中如雲霧般擴散纏繞", "晚：流星雨劃過天際並在夜空中留下殘影", "午：黑膠唱片機的唱針緩緩放下開始旋轉"
+                                ]},
+                                {"name": "電影級運鏡手法", "options": [
+                                    "緩慢平滑的向前推進 (Dolly in slowly)", "環繞主體的史詩級環繞運鏡 (Orbit shot)", "由背景模糊到前景清晰的焦點轉換 (Rack focus)", 
+                                    "平穩跟隨的橫向平移 (Tracking pan)", "穿越障礙物的飛行視角 (FPV drone flight)", "上帝視角緩慢垂直拉遠 (Top-down zoom out)", 
+                                    "極速拉近的衝擊性運鏡 (Crash zoom)", "模擬手持攝影的輕微晃動感 (Handheld camera shake)", "動態視角旋轉 (Roll shot)", 
+                                    "從水下突破水面的上升視角 (Underwater to surface)", "宛如駭客任務的子彈時間環繞 (Bullet time 360)", "與主體等速前進的跟拍 (Tracking shot)",
+                                    "從微觀極速拉遠到宏觀宇宙的視角 (Macro to Cosmic zoom)", "彷彿昆蟲飛行般的不規則穿梭運鏡 (Erratic insect flight)", "鏡面世界翻轉特效運鏡 (Mirror flip transition)",
+                                    "一鏡到底的穿梭運鏡 (One-take continuous shot)"
+                                ]},
+                                {"name": "影片節奏與氛圍", "options": [
+                                    "如參禪般極度緩慢、靜心平氣的步調 (禪意)", "極度緩慢、寧靜且療癒的步調 (Slow-motion relaxing)", "輕快、充滿活力的早晨節奏 (Upbeat and energetic)", 
+                                    "猶如電影般富有詩意的流暢感 (Poetic cinematic flow)", "充滿魔法與奇幻感的夢幻步調 (Magical and dreamy)", "配合重低音節奏的動感剪輯步調 (Rhythmic & dynamic)", 
+                                    "時間飛逝的縮時攝影急促感 (Time-lapse urgent)", "充滿復古懷舊感的定格跳躍節奏 (Stop-motion choppy)", "倒放時空的奇幻錯覺節奏 (Reverse playback)",
+                                    "行雲流水般的無縫轉場節奏 (Seamless transition flow)", "心跳般規律搏動的視覺節奏 (Heartbeat pulsating pace)"
+                                ]}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "🎵 AI 音樂生成腳本 (Suno/Udio)",
+                    "formulas": [
+                        {
+                            "name": "情境純音樂配樂 (BGM)",
+                            "pattern": "身為專業的 AI 音樂製作人，請為我生成一段高品質的純音樂提示詞 (Prompt)。\n\n【音樂風格設定】\n請融合「{音樂流派與曲風}」與「{主導樂器}」。整體節奏設定為「{BPM與節奏感}」。\n\n【氛圍與聽感】\n這首曲子需要傳達「{情感與氛圍}」的感覺，並在背景加入微弱的「{環境音效 (Foley/ASMR)}」以增加沉浸感。\n\n【結構指示】\n無需人聲 (Instrumental only)。請以平緩的 Intro 開始，中段稍微揚起，最後以溫柔的 Outro 漸弱收尾。",
+                            "variables": [
+                                {"name": "音樂流派與曲風", "options": [
+                                    "Lo-Fi 放鬆節拍 (Lo-Fi Chillhop)", "冥想環境音樂 (Ambient Meditation - 禪意)", "輕爵士與Bossa Nova (Smooth Jazz)", 
+                                    "原聲木吉他民謠 (Acoustic Folk)", "東方禪意新世紀音樂 (Oriental Zen New Age)", "史詩級電影配樂 (Cinematic Orchestral)", 
+                                    "復古城市流行 (80s City Pop)", "賽博龐克合成器波 (Cyberpunk Synthwave)", "夢幻流行 (Dream Pop)", 
+                                    "古典鋼琴獨奏 (Classical Piano Solo)", "R&B 靈魂樂 (R&B Soul)"
+                                ]},
+                                {"name": "主導樂器", "options": [
+                                    "溫暖柔和的呢喃鋼琴 (Felt Piano)", "清脆的原聲木吉他 (Acoustic Guitar)", "悠遠的尺八與古箏 (Shakuhachi & Guzheng - 禪意)", 
+                                    "慵懶微醺的薩克斯風 (Saxophone)", "夢幻縹緲的合成器 (Ethereal Synth)", "宏大激昂的弦樂交響群 (Sweeping Strings)", 
+                                    "空靈的頌缽與手碟 (Singing Bowl & Handpan - 禪意)", "溫潤深沉的大提琴 (Cello)", "輕盈的水晶音樂/八音盒 (Music Box)", 
+                                    "帶有底噪的復古黑膠取樣 (Vinyl Sampled Beats)"
+                                ]},
+                                {"name": "BPM與節奏感", "options": [
+                                    "60 BPM - 如心跳般極緩慢的冥想節奏 (Very Slow)", "80 BPM - 慵懶愜意的散步節拍 (Chill/Walking pace)", 
+                                    "100 BPM - 輕快搖擺的 R&B 節奏 (Groovy)", "120 BPM - 充滿朝氣與活力的早晨節拍 (Upbeat/Energetic)", 
+                                    "自由節拍 - 無固定鼓點的流動感 (Free Tempo/Rubato)", "Lo-Fi 經典的慵懶鼓點 (Sluggish Lo-Fi Beats)", 
+                                    "輕柔的華爾滋三拍子 (Gentle Waltz 3/4 time)"
+                                ]},
+                                {"name": "情感與氛圍", "options": [
+                                    "治癒身心與內心絕對平靜 (Healing & Inner Peace - 禪意)", "充滿朝氣、希望與迎向陽光 (Hopeful & Energetic)", 
+                                    "深夜的孤獨、深邃與內省 (Late Night Solitude)", "咖啡廳的慵懶、愜意與微醺 (Cozy Cafe Vibe)", 
+                                    "宏大、史詩且敬畏自然 (Epic & Awe-inspiring)", "童話般的溫馨與無憂無慮 (Fairy-tale Wholesome)", 
+                                    "浪漫、唯美與深深的眷戀 (Romantic & Dreamy)", "充滿神秘與賽博龐克的未來感 (Mysterious Sci-Fi)"
+                                ]},
+                                {"name": "環境音效 (Foley/ASMR)", "options": [
+                                    "無環境音效 (None)", "柴火劈啪燃燒的溫暖白噪音 (Crackling Fire)", "遠處規律拍打沙灘的海浪聲 (Ocean Waves)", 
+                                    "清晨森林的清脆鳥鳴與微風 (Morning Birds)", "雨滴打在玻璃窗上的淅瀝聲 (Rain on Window)", 
+                                    "咖啡廳背景的模糊交談與杯盤聲 (Cafe Murmur)", "深山寺廟遠處傳來的悠遠鐘聲 (Distant Temple Bell - 禪意)", 
+                                    "夏夜田野間的蟲鳴與青蛙叫聲 (Summer Night Crickets)", "老舊黑膠唱片的沙沙底噪聲 (Vinyl Crackle)"
+                                ]}
+                            ]
+                        },
+                        {
+                            "name": "專屬問候人聲歌曲 (Vocal)",
+                            "pattern": "身為專業的 AI 音樂製作人與作詞家，請為我生成一段完整的人聲歌曲提示詞 (Prompt) 與歌詞。\n\n【音樂風格設定】\n曲風為「{音樂流派與曲風}」，由「{歌手聲線}」演唱。主導樂器為「{主導樂器}」，節奏為「{BPM與節奏感}」。\n\n【氛圍與聽感】\n整體氛圍為「{情感與氛圍}」。\n\n【歌詞結構指示】\n請為我撰寫包含 [Verse]、[Chorus]、[Outro] 的短版歌詞，主題環繞著美好的問候與生活祝福。\n結尾的 [Outro] 歌詞必須包含專屬署名：「願你擁有美好的一刻，這裡是琦閔的祝福。」",
+                            "variables": [
+                                {"name": "歌手聲線", "options": [
+                                    "溫柔空靈的治癒系女聲 (Soft soothing female vocal)", "帶有磁性與故事感的沙啞男聲 (Husky magnetic male vocal)", 
+                                    "慵懶微醺的爵士女伶 (Lazy jazz female singer)", "清新溫暖的民謠男聲 (Fresh indie male vocal)", 
+                                    "充滿爆發力的靈魂樂女聲 (Powerful soul female vocal)", "空靈的精靈系詠唱 (Ethereal elven chanting - 無歌詞)", 
+                                    "稚嫩可愛的童聲合唱 (Cute children's choir)"
+                                ]},
+                                {"name": "音樂流派與曲風", "options": [
+                                    "溫馨原聲民謠 (Acoustic Folk Pop)", "輕快 R&B 靈魂樂 (R&B Soul)", "獨立流行樂 (Indie Pop)", 
+                                    "輕爵士與微醺藍調 (Smooth Jazz & Blues)", "復古城市流行 (City Pop)", "療癒系童謠 (Lullaby / Nursery Rhyme)"
+                                ]},
+                                {"name": "主導樂器", "options": [
+                                    "清脆的原聲木吉他 (Acoustic Guitar)", "明亮的流行鋼琴 (Pop Piano)", "慵懶微醺的薩克斯風 (Saxophone)", 
+                                    "輕快的烏克麗麗 (Ukulele)", "溫潤深沉的大提琴 (Cello)", "帶有復古感的電吉他 (Clean Electric Guitar)"
+                                ]},
+                                {"name": "BPM與節奏感", "options": [
+                                    "80 BPM - 慵懶愜意的散步節拍 (Chill/Walking pace)", "100 BPM - 輕快搖擺的節奏 (Groovy)", 
+                                    "120 BPM - 充滿朝氣與活力的早晨節拍 (Upbeat/Energetic)", "自由節拍 - 隨人聲情感起伏的無固定節拍 (Rubato)"
+                                ]},
+                                {"name": "情感與氛圍", "options": [
+                                    "充滿朝氣、希望與迎向陽光 (Hopeful & Energetic)", "咖啡廳的慵懶、愜意與微醺 (Cozy Cafe Vibe)", 
+                                    "溫暖治癒、如同老友般的擁抱 (Warm & Healing)", "深夜的深邃、平靜與安撫 (Calm & Soothing)"
+                                ]}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const defaultFrames = [
+            "隨機創意圖框",
+            "中式古典木雕花窗圖框",
+            "水墨暈染漸層雲霧圖框",
+            "歐式復古巴洛克金邊畫框",
+            "日式和風金繼邊緣圖框",
+            "晶瑩剔透的冰滴玻璃圖框",
+            "賽博龐克發光霓虹電子框",
+            "唯美浪漫粉色櫻花花環框",
+            "極簡高雅半透明磨砂白框",
+            "溫馨手繪水彩植物藤蔓框",
+            "大亨小傳裝飾藝術金屬框",
+            "粗獷質感牛皮紙撕裂邊框",
+            "神祕魔法陣發光符文圖框",
+            "蒸汽龐克齒輪與黃銅機械框",
+            "清新立體拍立得相紙圖框",
+            "復古郵票邊緣齒孔造型框",
+            "電影膠捲底片黑白邊緣框",
+            "漂浮的立體氣泡透明圖框",
+            "復古火漆印章與羊皮紙框",
+            "現代科技感HUD數據視窗框"
+        ];
+
+        let frameOptionsList = [];
+
+        const defaultImageCounts = ["1張", "2張", "3張", "4張"];
+        let imageCountOptionsList = [];
+
+        function loadImageCountOptions() {
+            let saved = localStorage.getItem('savedImageCountOptions');
+            if (saved) {
+                imageCountOptionsList = JSON.parse(saved);
+            } else {
+                imageCountOptionsList = [...defaultImageCounts];
+            }
+            renderImageCountSelect();
+        }
+
+        function renderImageCountSelect() {
+            const select = document.getElementById('image-count-select');
+            const currentSelected = select.value;
+            select.innerHTML = '';
+            
+            imageCountOptionsList.forEach((count) => {
+                const opt = document.createElement('option');
+                opt.value = count;
+                opt.innerText = count;
+                select.appendChild(opt);
+            });
+            
+            const customOpt = document.createElement('option');
+            customOpt.value = 'custom';
+            customOpt.innerText = '✏️ 自行填寫並新增選項...';
+            select.appendChild(customOpt);
+
+            if (currentSelected && imageCountOptionsList.includes(currentSelected)) {
+                select.value = currentSelected;
+            } else if (currentSelected === 'custom') {
+                select.value = 'custom';
+            } else {
+                select.value = imageCountOptionsList[0];
+            }
+            handleImageCountSelectChange();
+        }
+
+        function toggleEditImageCountMode() {
+            const actions = document.getElementById('edit-image-count-actions');
+            const btn = document.getElementById('edit-image-count-btn');
+            if (actions.style.display === 'none') {
+                actions.style.display = 'flex';
+                btn.innerText = '❌ 取消';
+            } else {
+                actions.style.display = 'none';
+                btn.innerText = '✏️ 編輯';
+            }
+        }
+
+        function restoreDefaultImageCounts(keepCustom) {
+            if (keepCustom) {
+                if (confirm("確定要恢復系統預設張數選項嗎？（您自行新增的選項將會被保留）")) {
+                    const customCounts = imageCountOptionsList.filter(f => !defaultImageCounts.includes(f));
+                    imageCountOptionsList = [...new Set([...defaultImageCounts, ...customCounts])];
+                    localStorage.setItem('savedImageCountOptions', JSON.stringify(imageCountOptionsList));
+                    renderImageCountSelect();
+                    toggleEditImageCountMode();
+                    alert("✅ 已恢復系統預設清單，並保留您的自訂選項！");
+                }
+            } else {
+                if (confirm("🚨 警告：確定要完全恢復為系統最初預設值嗎？\n(您自行新增的選項將會被永久清除！)")) {
+                    imageCountOptionsList = [...defaultImageCounts];
+                    localStorage.setItem('savedImageCountOptions', JSON.stringify(imageCountOptionsList));
+                    renderImageCountSelect();
+                    toggleEditImageCountMode();
+                    alert("✅ 已完全恢復為系統預設清單！(自訂項目已清除)");
+                }
+            }
+        }
+
+        function handleImageCountSelectChange() {
+            const val = document.getElementById('image-count-select').value;
+            const customWrapper = document.getElementById('custom-image-count-wrapper');
+            if (val === 'custom') {
+                customWrapper.style.display = 'flex';
+                document.getElementById('image-count-custom').focus();
+            } else {
+                customWrapper.style.display = 'none';
+            }
+        }
+
+        function addNewImageCount() {
+            const input = document.getElementById('image-count-custom');
+            const newCount = input.value.trim();
+            if (!newCount) {
+                alert("請輸入張數名稱！");
+                return;
+            }
+            if (imageCountOptionsList.includes(newCount)) {
+                alert("此張數選項已存在於清單中！");
+                document.getElementById('image-count-select').value = newCount;
+                handleImageCountSelectChange();
+                return;
+            }
+            
+            imageCountOptionsList.push(newCount);
+            localStorage.setItem('savedImageCountOptions', JSON.stringify(imageCountOptionsList));
+            input.value = '';
+            renderImageCountSelect();
+            document.getElementById('image-count-select').value = newCount;
+            handleImageCountSelectChange();
+            alert("✅ 已成功新增至張數選項清單！");
+        }
+
+        function deleteSelectedImageCount() {
+            const select = document.getElementById('image-count-select');
+            const val = select.value;
+            if (val === 'custom') {
+                alert("請先選擇要刪除的張數項目！");
+                return;
+            }
+            if (confirm(`確定要將「${val}」從清單中永久刪除嗎？`)) {
+                imageCountOptionsList = imageCountOptionsList.filter(f => f !== val);
+                localStorage.setItem('savedImageCountOptions', JSON.stringify(imageCountOptionsList));
+                renderImageCountSelect();
+            }
+        }
+
+        let currentFormula = null;
+        const today = new Date();
+        const formattedDate = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
+        document.getElementById('current-date-display').innerText = `系統日期：${formattedDate}`;
+
+        function initSidebar() {
+            const menu = document.getElementById('sidebar-menu');
+            themeData.dimensions.forEach((dim, dimIndex) => {
+                const group = document.createElement('div');
+                group.className = 'dimension-group';
+                
+                const title = document.createElement('div');
+                title.className = 'dimension-title';
+                title.innerHTML = `<span>${dim.name}</span> <span style="font-size:0.8rem; color:#888;">▼</span>`;
+                
+                const list = document.createElement('ul');
+                list.className = 'formula-list';
+                if(dimIndex !== 0) list.style.display = 'none'; 
+                else title.style.borderBottom = 'none';
+
+                title.onclick = () => {
+                    const isHidden = list.style.display === 'none';
+                    list.style.display = isHidden ? 'block' : 'none';
+                    title.style.borderBottom = isHidden ? 'none' : '1px solid var(--border-color)';
+                };
+                
+                dim.formulas.forEach((formula, formIndex) => {
+                    const item = document.createElement('li');
+                    item.className = 'formula-item';
+                    item.innerText = formula.name;
+                    item.onclick = () => selectFormula(formula, item);
+                    list.appendChild(item);
+                });
+                
+                group.appendChild(title);
+                group.appendChild(list);
+                menu.appendChild(group);
+            });
+            
+            loadSignatures();
+            loadFrameOptions();
+            loadImageCountOptions();
+        }
+
+        // ==========================
+        //  通用圖框處理區
+        // ==========================
+        function loadFrameOptions() {
+            let saved = localStorage.getItem('savedFrameOptions');
+            if (saved) {
+                frameOptionsList = JSON.parse(saved);
+            } else {
+                frameOptionsList = [...defaultFrames];
+            }
+            renderFrameSelect();
+        }
+
+        function renderFrameSelect() {
+            const select = document.getElementById('frame-select');
+            const currentSelected = select.value;
+            select.innerHTML = '';
+            
+            frameOptionsList.forEach((frame, index) => {
+                const opt = document.createElement('option');
+                opt.value = frame;
+                if (frame === "隨機創意圖框") {
+                    opt.innerText = frame;
+                } else {
+                    opt.innerText = (index < 9 ? "0" + index : index) + ". " + frame;
+                }
+                select.appendChild(opt);
+            });
+            
+            const customOpt = document.createElement('option');
+            customOpt.value = 'custom';
+            customOpt.innerText = '✏️ 自行填寫並新增選項...';
+            select.appendChild(customOpt);
+
+            if (currentSelected && frameOptionsList.includes(currentSelected)) {
+                select.value = currentSelected;
+            } else if (currentSelected === 'custom') {
+                select.value = 'custom';
+            } else {
+                select.value = frameOptionsList[0];
+            }
+            handleFrameSelectChange();
+        }
+
+        function toggleEditFrameMode() {
+            const actions = document.getElementById('edit-frame-actions');
+            const btn = document.getElementById('edit-frame-btn');
+            if (actions.style.display === 'none') {
+                actions.style.display = 'flex';
+                btn.innerText = '❌ 取消';
+            } else {
+                actions.style.display = 'none';
+                btn.innerText = '✏️ 編輯';
+            }
+        }
+
+        function restoreDefaultFrames(keepCustom) {
+            if (keepCustom) {
+                if (confirm("確定要恢復所有系統預設圖框嗎？（您自行新增的圖框將會被保留）")) {
+                    const customFrames = frameOptionsList.filter(f => !defaultFrames.includes(f));
+                    frameOptionsList = [...new Set([...defaultFrames, ...customFrames])];
+                    localStorage.setItem('savedFrameOptions', JSON.stringify(frameOptionsList));
+                    renderFrameSelect();
+                    toggleEditFrameMode();
+                    alert("✅ 已恢復系統預設清單，並保留您的自訂選項！");
+                }
+            } else {
+                if (confirm("🚨 警告：確定要將所有圖框選項完全恢復為系統最初預設值嗎？\n(您自行新增的圖框將會被永久清除！)")) {
+                    frameOptionsList = [...defaultFrames];
+                    localStorage.setItem('savedFrameOptions', JSON.stringify(frameOptionsList));
+                    renderFrameSelect();
+                    toggleEditFrameMode();
+                    alert("✅ 已完全恢復為系統預設清單！(自訂項目已清除)");
+                }
+            }
+        }
+
+        function handleFrameSelectChange() {
+            const val = document.getElementById('frame-select').value;
+            const customWrapper = document.getElementById('custom-frame-wrapper');
+            if (val === 'custom') {
+                customWrapper.style.display = 'flex';
+                document.getElementById('frame-custom').focus();
+            } else {
+                customWrapper.style.display = 'none';
+            }
+        }
+
+        function addNewFrame() {
+            const input = document.getElementById('frame-custom');
+            const newFrame = input.value.trim();
+            if (!newFrame) {
+                alert("請輸入圖框樣式名稱！");
+                return;
+            }
+            if (frameOptionsList.includes(newFrame)) {
+                alert("此圖框已存在於清單中！");
+                document.getElementById('frame-select').value = newFrame;
+                handleFrameSelectChange();
+                return;
+            }
+            
+            frameOptionsList.push(newFrame);
+            localStorage.setItem('savedFrameOptions', JSON.stringify(frameOptionsList));
+            input.value = '';
+            renderFrameSelect();
+            document.getElementById('frame-select').value = newFrame;
+            handleFrameSelectChange();
+            alert("✅ 已成功新增至圖框選項清單！");
+        }
+
+        function deleteSelectedFrame() {
+            const select = document.getElementById('frame-select');
+            const val = select.value;
+            if (val === 'custom') {
+                alert("請先選擇要刪除的圖框項目！");
+                return;
+            }
+            if (confirm(`確定要將「${val}」從清單中永久刪除嗎？`)) {
+                frameOptionsList = frameOptionsList.filter(f => f !== val);
+                localStorage.setItem('savedFrameOptions', JSON.stringify(frameOptionsList));
+                renderFrameSelect();
+            }
+        }
+
+        // ==========================
+        //  自訂署名儲存區
+        // ==========================
+        function loadSignatures() {
+            let sigs = JSON.parse(localStorage.getItem('savedSlots') || '["琦閔~祝福您", "", "", "", "", "", "", "", "", ""]');
+            let selectedIndex = parseInt(localStorage.getItem('selectedSigIndex') || '0');
+            for(let i=0; i<10; i++) {
+                const input = document.getElementById(`sig-input-${i}`);
+                const radio = document.getElementById(`sig-radio-${i}`);
+                if(input && radio) {
+                    input.value = sigs[i] || '';
+                    radio.checked = (i === selectedIndex);
+                }
+            }
+            updateSummaryDisplay();
+        }
+
+        function saveSignatures() {
+            let sigs = [];
+            let selectedIndex = 0;
+            for(let i=0; i<10; i++) {
+                const input = document.getElementById(`sig-input-${i}`);
+                const radio = document.getElementById(`sig-radio-${i}`);
+                if(input && radio) {
+                    sigs.push(input.value);
+                    if(radio.checked) {
+                        selectedIndex = i;
+                    }
+                }
+            }
+            localStorage.setItem('savedSlots', JSON.stringify(sigs));
+            localStorage.setItem('selectedSigIndex', selectedIndex);
+            updateSummaryDisplay();
+        }
+
+        function updateSummaryDisplay() {
+            let selectedVal = "琦閔~祝福您";
+            for(let i=0; i<10; i++) {
+                if(document.getElementById(`sig-radio-${i}`).checked) {
+                    let val = document.getElementById(`sig-input-${i}`).value.trim();
+                    if(val) selectedVal = val;
+                    break;
+                }
+            }
+            document.getElementById('current-sig-display').innerText = `當前選用：${selectedVal} ▼`;
+        }
+
+        // ==========================
+        //  巨量參數動態生成區 (新增自動翻譯功能)
+        // ==========================
+        function getVarStorageKey(varName) {
+            return 'savedVar_' + varName;
+        }
+
+        function getCurrentVarOptions(variable) {
+            let saved = localStorage.getItem(getVarStorageKey(variable.name));
+            if (saved) {
+                return JSON.parse(saved);
+            }
+            return [...variable.options];
+        }
+
+        function selectFormula(formula, element) {
+            document.querySelectorAll('.formula-item').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            
+            currentFormula = formula;
+            document.getElementById('formula-title').innerText = `${formula.name}`;
+            
+            document.getElementById('general-settings-section').style.display = 'block';
+            document.getElementById('variables-section').style.display = 'block';
+            document.getElementById('context-section').style.display = 'block';
+            document.getElementById('output-section').style.display = 'block';
+            
+            if (formula.variables && formula.variables.length > 0) {
+                renderVariables(formula.variables);
+            } else {
+                document.getElementById('variables-section').style.display = 'none';
+            }
+            
+            toggleSidebar(); 
+        }
+
+        function renderVariables(variables) {
+            const container = document.getElementById('variables-container');
+            container.innerHTML = '';
+            
+            variables.forEach((variable, index) => {
+                const row = document.createElement('div');
+                row.className = 'var-row';
+                
+                const label = document.createElement('label');
+                label.innerText = `🔹 ${variable.name} (自訂清單)`;
+                
+                const inputGroup = document.createElement('div');
+                inputGroup.className = 'input-group';
+                
+                // --- 1. Select 區塊與編輯按鈕 ---
+                const topRow = document.createElement('div');
+                topRow.style = 'display: flex; gap: 8px; width: 100%;';
+                
+                const select = document.createElement('select');
+                select.id = `var-select-${index}`;
+                select.style.flex = '1';
+                select.onchange = () => handleVarSelectChange(index);
+                
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.id = `edit-var-btn-${index}`;
+                editBtn.className = 'secondary-btn';
+                editBtn.style = 'width: auto; padding: 0 12px; font-size: 0.9rem; height: 44px; margin: 0;';
+                editBtn.innerText = '✏️ 編輯';
+                editBtn.onclick = () => toggleEditVarMode(index);
+                
+                topRow.appendChild(select);
+                topRow.appendChild(editBtn);
+
+                // --- 2. 編輯模式下的操作按鈕 (刪除、復原) ---
+                const editActions = document.createElement('div');
+                editActions.id = `edit-var-actions-${index}`;
+                editActions.style = 'display: none; gap: 8px; margin-top: 5px; flex-direction: row; flex-wrap: wrap; justify-content: flex-end;';
+                
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'secondary-btn';
+                delBtn.style = 'width: auto; padding: 0 10px; font-size: 0.85rem; height: 38px; margin: 0; color: #d32f2f; border-color: #d32f2f;';
+                delBtn.innerText = '🗑️ 刪除選項';
+                delBtn.onclick = () => deleteSelectedVar(index);
+                
+                const restoreKeepBtn = document.createElement('button');
+                restoreKeepBtn.type = 'button';
+                restoreKeepBtn.className = 'secondary-btn';
+                restoreKeepBtn.style = 'width: auto; padding: 0 10px; font-size: 0.85rem; height: 38px; margin: 0;';
+                restoreKeepBtn.innerText = '🔄 復原(保留新增)';
+                restoreKeepBtn.onclick = () => restoreDefaultVar(index, true);
+                
+                const restoreClearBtn = document.createElement('button');
+                restoreClearBtn.type = 'button';
+                restoreClearBtn.className = 'secondary-btn';
+                restoreClearBtn.style = 'width: auto; padding: 0 10px; font-size: 0.85rem; height: 38px; margin: 0;';
+                restoreClearBtn.innerText = '🔄 復原(清空新增)';
+                restoreClearBtn.onclick = () => restoreDefaultVar(index, false);
+
+                editActions.appendChild(delBtn);
+                editActions.appendChild(restoreKeepBtn);
+                editActions.appendChild(restoreClearBtn);
+
+                // --- 3. 自訂輸入與新增按鈕區塊 (自動翻譯設計) ---
+                const customWrapper = document.createElement('div');
+                customWrapper.id = `custom-var-wrapper-${index}`;
+                customWrapper.style = 'display: none; gap: 8px; margin-top: 5px; flex-direction: row; align-items: center; width: 100%;';
+                
+                const customInput = document.createElement('input');
+                customInput.type = 'text';
+                customInput.id = `var-custom-${index}`;
+                customInput.placeholder = `輸入中文，系統將自動翻譯並加上 (英文)...`;
+                customInput.style = 'flex: 1; height: 44px; margin: 0; min-width: 0;';
+                
+                const addBtn = document.createElement('button');
+                addBtn.type = 'button';
+                addBtn.className = 'secondary-btn';
+                addBtn.style = 'width: auto; padding: 0 12px; font-size: 0.9rem; height: 44px; margin: 0; white-space: nowrap;';
+                addBtn.innerText = '➕ 新增';
+                addBtn.onclick = () => addNewVar(index);
+
+                customWrapper.appendChild(customInput);
+                customWrapper.appendChild(addBtn);
+                
+                // 組合所有區塊
+                inputGroup.appendChild(topRow);
+                inputGroup.appendChild(editActions);
+                inputGroup.appendChild(customWrapper);
+                row.appendChild(label);
+                row.appendChild(inputGroup);
+                container.appendChild(row);
+
+                // 渲染該變數的實際選項
+                renderVarSelectOptions(index);
+            });
+        }
+
+        function renderVarSelectOptions(index) {
+            const variable = currentFormula.variables[index];
+            const select = document.getElementById(`var-select-${index}`);
+            const currentSelected = select.value;
+            const currentOptions = getCurrentVarOptions(variable);
+            
+            select.innerHTML = '';
+            currentOptions.forEach((optStr) => {
+                const opt = document.createElement('option');
+                opt.value = optStr;
+                opt.innerText = optStr;
+                select.appendChild(opt);
+            });
+            
+            const customOpt = document.createElement('option');
+            customOpt.value = 'custom';
+            customOpt.innerText = '✏️ 自行填寫並新增選項...';
+            select.appendChild(customOpt);
+
+            if (currentSelected && currentOptions.includes(currentSelected)) {
+                select.value = currentSelected;
+            } else if (currentSelected === 'custom') {
+                select.value = 'custom';
+            } else {
+                select.value = currentOptions[0];
+            }
+            handleVarSelectChange(index);
+        }
+
+        function handleVarSelectChange(index) {
+            const val = document.getElementById(`var-select-${index}`).value;
+            const customWrapper = document.getElementById(`custom-var-wrapper-${index}`);
+            if (val === 'custom') {
+                customWrapper.style.display = 'flex';
+                document.getElementById(`var-custom-${index}`).focus();
+            } else {
+                customWrapper.style.display = 'none';
+            }
+        }
+
+        // 自動翻譯並新增的非同步核心函數
+        async function addNewVar(index) {
+            const variable = currentFormula.variables[index];
+            const input = document.getElementById(`var-custom-${index}`);
+            const btn = input.nextElementSibling;
+            const zhVal = input.value.trim();
+            
+            if (!zhVal) {
+                alert(`請輸入【${variable.name}】的中文名稱！`);
+                return;
+            }
+            
+            let finalVal = zhVal;
+            
+            // 自動翻譯機制：若沒有手動輸入括號，則呼叫 Google 翻譯 API
+            if (!zhVal.includes('(') && !zhVal.includes('（')) {
+                btn.innerText = '⏳ 翻譯中...';
+                btn.disabled = true;
+                try {
+                    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=en&dt=t&q=${encodeURIComponent(zhVal)}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    const enVal = data[0][0][0];
+                    if (enVal && enVal.toLowerCase() !== zhVal.toLowerCase()) {
+                        finalVal = `${zhVal} (${enVal})`;
+                    }
+                } catch (err) {
+                    console.error("自動翻譯失敗:", err);
+                    // 若失敗則保留純中文
+                }
+                btn.innerText = '➕ 新增';
+                btn.disabled = false;
+            }
+            
+            let currentOptions = getCurrentVarOptions(variable);
+            if (currentOptions.includes(finalVal)) {
+                alert("此選項已存在於清單中！");
+                document.getElementById(`var-select-${index}`).value = finalVal;
+                handleVarSelectChange(index);
+                return;
+            }
+            
+            currentOptions.push(finalVal);
+            localStorage.setItem(getVarStorageKey(variable.name), JSON.stringify(currentOptions));
+            
+            input.value = '';
+            renderVarSelectOptions(index);
+            document.getElementById(`var-select-${index}`).value = finalVal;
+            handleVarSelectChange(index);
+            alert("✅ 已成功新增選項！");
+        }
+
+        function deleteSelectedVar(index) {
+            const variable = currentFormula.variables[index];
+            const select = document.getElementById(`var-select-${index}`);
+            const val = select.value;
+            if (val === 'custom') {
+                alert("請先選擇要刪除的項目！");
+                return;
+            }
+            if (confirm(`確定要將「${val}」從清單中永久刪除嗎？`)) {
+                let currentOptions = getCurrentVarOptions(variable);
+                currentOptions = currentOptions.filter(f => f !== val);
+                localStorage.setItem(getVarStorageKey(variable.name), JSON.stringify(currentOptions));
+                renderVarSelectOptions(index);
+            }
+        }
+
+        function restoreDefaultVar(index, keepCustom) {
+            const variable = currentFormula.variables[index];
+            const defaultOpts = variable.options;
+            let currentOptions = getCurrentVarOptions(variable);
+            
+            if (keepCustom) {
+                if (confirm(`確定要恢復【${variable.name}】的系統預設選項嗎？（您自行新增的選項將會被保留）`)) {
+                    const customOpts = currentOptions.filter(f => !defaultOpts.includes(f));
+                    const mergedOpts = [...new Set([...defaultOpts, ...customOpts])];
+                    localStorage.setItem(getVarStorageKey(variable.name), JSON.stringify(mergedOpts));
+                    renderVarSelectOptions(index);
+                    toggleEditVarMode(index);
+                    alert("✅ 已恢復系統預設清單，並保留您的自訂選項！");
+                }
+            } else {
+                if (confirm(`🚨 警告：確定要將【${variable.name}】完全恢復為系統最初預設值嗎？\n(您自行新增的選項將會被永久清除！)`)) {
+                    localStorage.setItem(getVarStorageKey(variable.name), JSON.stringify(defaultOpts));
+                    renderVarSelectOptions(index);
+                    toggleEditVarMode(index);
+                    alert("✅ 已完全恢復為系統預設清單！(自訂項目已清除)");
+                }
+            }
+        }
+
+        function toggleEditVarMode(index) {
+            const actions = document.getElementById(`edit-var-actions-${index}`);
+            const btn = document.getElementById(`edit-var-btn-${index}`);
+            if (actions.style.display === 'none') {
+                actions.style.display = 'flex';
+                btn.innerText = '❌ 取消';
+            } else {
+                actions.style.display = 'none';
+                btn.innerText = '✏️ 編輯';
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+        }
+
+        function generatePrompt() {
+            if (!currentFormula) return;
+            
+            let finalPrompt = currentFormula.pattern;
+
+            // 獲取圖片張數設定
+            let imageCountStyle = document.getElementById('image-count-select').value;
+            if (imageCountStyle === 'custom') {
+                imageCountStyle = document.getElementById('image-count-custom').value || '1張';
+            }
+
+            // 動態替換原模板中的生成數量，加入強烈防拼貼與獨立生成提示
+            if (imageCountStyle === '1張' || imageCountStyle === '1') {
+                finalPrompt = finalPrompt.replace(/請為我生成一張/g, `請為我生成 1 張`);
+            } else {
+                finalPrompt = finalPrompt.replace(/請為我生成一張/g, `請為我「分別」且「獨立」生成 ${imageCountStyle} `);
+                
+                const antiGridInstruction = `\n\n【生成張數與輸出格式強力約束】\n👉 請務必「分別」生成 ${imageCountStyle} 獨立的圖片。嚴禁將這 ${imageCountStyle} 圖片拼貼、組合或分割成單一圖片（絕對禁止九宮格、四宮格、左右對切等多宮格形式）。每一張產出的結果都必須是單獨、完整的圖檔。`;
+                
+                if(finalPrompt.includes('【文字與排版設定】')) {
+                    finalPrompt = finalPrompt.replace(/(【文字與排版設定】[\s\S]*?)(?=\n\n【|$)/, `$1${antiGridInstruction}`);
+                } else if (finalPrompt.includes('【文字與後製指示 (若工具支援)】')) {
+                    finalPrompt = finalPrompt.replace(/(【文字與後製指示 \(若工具支援\)】[\s\S]*?)(?=\n\n【|$)/, `$1${antiGridInstruction}`);
+                } else {
+                    finalPrompt += antiGridInstruction;
+                }
+            }
+            
+            // 抓取當前單選框勾選的輸入欄位文字
+            saveSignatures(); 
+            let signatureInput = "琦閔~祝福您";
+            for(let i=0; i<10; i++) {
+                if(document.getElementById(`sig-radio-${i}`).checked) {
+                    let val = document.getElementById(`sig-input-${i}`).value.trim();
+                    if(val) signatureInput = val;
+                    break;
+                }
+            }
+
+            // 確認是否顯示署名
+            const showSig = document.getElementById('show-signature').checked;
+            
+            if (showSig) {
+                // 如果有勾選，正常替換署名文字
+                finalPrompt = finalPrompt.replace(/琦閔~祝福您|琦閔/g, signatureInput);
+            } else {
+                // 如果取消勾選，移除所有與署名相關的提示詞句子
+                finalPrompt = finalPrompt.replace(/\n2\. 圖片右下方必須顯示創意字體.*?的署名：「琦閔~祝福您」。/g, '');
+                finalPrompt = finalPrompt.replace(/影片右下角常駐浮水印：「琦閔」以及/g, '影片右下角常駐顯示');
+                finalPrompt = finalPrompt.replace(/影片右下角常駐浮水印：「琦閔」/g, '');
+                finalPrompt = finalPrompt.replace(/\n結尾的 \[Outro\] 歌詞必須包含專屬署名：「願你擁有美好的一刻，這裡是琦閔的祝福。」/g, '');
+                // 智能修飾
+                finalPrompt = finalPrompt.replace(/署名正下方清楚顯示今日日期/g, '圖片右下方清楚顯示今日日期');
+            }
+            
+            // 處理日期勾選框邏輯
+            const showDate = document.getElementById('show-date').checked;
+            if (showDate) {
+                finalPrompt = finalPrompt.replace(/\{今日日期\}/g, formattedDate);
+            } else {
+                finalPrompt = finalPrompt.replace(/\n3\. 署名正下方清楚顯示今日日期：\{今日日期\}。/g, '');
+                finalPrompt = finalPrompt.replace(/\n3\. 圖片右下方清楚顯示今日日期：\{今日日期\}。/g, ''); 
+                finalPrompt = finalPrompt.replace(/以及今日日期：\{今日日期\}/g, '');
+                finalPrompt = finalPrompt.replace(/影片右下角常駐顯示今日日期：\{今日日期\}。/g, ''); 
+            }
+
+            // 🌟 處理圖框選項特效邏輯
+            const showFrame = document.getElementById('show-frame').checked;
+            if (showFrame && (showSig || showDate)) {
+                let frameStyle = document.getElementById('frame-select').value;
+                if (frameStyle === 'custom') {
+                    frameStyle = document.getElementById('frame-custom').value || '隨機創意圖框';
+                }
+                const frameInstruction = `\n👉 【圖框特效排版】：請將上述署名與日期完美整合設計於一個「${frameStyle}」之中，並強制設定該圖框大小為佔整體圖片空間版面的 1/8 尺寸，確保字體清晰且與整體視覺風格無縫融合。`;
+                
+                if(finalPrompt.includes('【文字與排版設定】')) {
+                    finalPrompt = finalPrompt.replace(/(【文字與排版設定】[\s\S]*?)(?=\n\n【|$)/, `$1${frameInstruction}`);
+                } else if (finalPrompt.includes('【文字與後製指示 (若工具支援)】')) {
+                    finalPrompt = finalPrompt.replace(/(【文字與後製指示 \(若工具支援\)】[\s\S]*?)(?=\n\n【|$)/, `$1${frameInstruction}`);
+                } else {
+                    finalPrompt += `\n\n【圖框特效排版】\n請將署名與日期完美整合設計於一個「${frameStyle}」之中，並設定為整體版面 1/8 的尺寸。`;
+                }
+            }
+
+            // 處理變數選單
+            if (currentFormula.variables) {
+                currentFormula.variables.forEach((variable, index) => {
+                    const select = document.getElementById(`var-select-${index}`);
+                    let value = select.value;
+                    
+                    if (value === 'custom') {
+                        value = document.getElementById(`var-custom-${index}`).value.trim();
+                        if(!value) {
+                            // 防呆：如果沒有抓到值，預設為該變數清單的第一個選項
+                            const currentOpts = getCurrentVarOptions(variable);
+                            value = currentOpts.length > 0 ? currentOpts[0] : variable.options[0]; 
+                        }
+                    }
+                    
+                    finalPrompt = finalPrompt.replace(`{${variable.name}}`, value);
+                });
+            }
+            
+            // 處理附加情境
+            let contextStr = "";
+            const contextText = document.getElementById('context-text').value.trim();
+            const contextUrl = document.getElementById('context-url').value.trim();
+            const contextFile = document.getElementById('context-file').files.length;
+            
+            if (contextText || contextUrl || contextFile > 0) {
+                contextStr += "\n\n【附加情境與金句指定】\n";
+                if (contextText) contextStr += `- 核心內容：${contextText}\n`;
+                if (contextUrl) contextStr += `- 風格參考：${contextUrl}\n`;
+                if (contextFile > 0) contextStr += `- 需分析上傳之檔案做為排版參考。\n`;
+            }
+            
+            document.getElementById('final-prompt').value = finalPrompt + contextStr;
+            
+            document.querySelector('.main-content').scrollTo({
+                top: document.querySelector('.main-content').scrollHeight,
+                behavior: 'smooth'
+            });
+            
+            document.getElementById('sig-dropdown').removeAttribute('open');
+        }
+
+        function copyPrompt() {
+            const textarea = document.getElementById('final-prompt');
+            if(!textarea.value) {
+                alert("請先生成提示詞！");
+                return;
+            }
+            textarea.select();
+            document.execCommand('copy');
+            alert('✅ 提示詞已複製到剪貼簿！');
+        }
+
+        function downloadTXT() {
+            const text = document.getElementById('final-prompt').value;
+            if(!text) {
+                alert("請先生成提示詞！");
+                return;
+            }
+            const timePrefix = currentFormula.name.includes("早安") ? "早安" : (currentFormula.name.includes("午安") ? "午安" : (currentFormula.name.includes("晚安") ? "晚安" : "問候"));
+            const blob = new Blob([text], { type: 'text/plain' });
+            const anchor = document.createElement('a');
+            anchor.download = `AI${timePrefix}提示詞_${formattedDate}.txt`;
+            anchor.href = window.URL.createObjectURL(blob);
+            anchor.target = '_blank';
+            anchor.style.display = 'none';
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+        }
+
+        window.onload = initSidebar;
+    </script>
+</body>
+</html>
